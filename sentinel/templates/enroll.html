@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Enroll Person</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-width: 400px;
+    }
+    input, button {
+      padding: 8px;
+      font-size: 1em;
+    }
+    .message {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+    .error {
+      color: red;
+    }
+    .success {
+      color: green;
+    }
+  </style>
+</head>
+<body>
+  <h1>Enroll a Person</h1>
+  <form method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+    <label>Person ID: <input type="text" name="person_id" required></label>
+    <label>Job: <input type="text" name="job" required></label>
+    <label>Age: <input type="number" name="age" required></label>
+    <label>Height (cm): <input type="number" name="height" required></label>
+    <label>Weight (kg): <input type="number" name="weight" required></label>
+    <label>Face Image: <input type="file" name="face_image" accept="image/*" required></label>
+    <button type="submit">Enroll</button>
+  </form>
+
+  {% if error %}
+    <div class="message error">{{ error }}</div>
+  {% endif %}
+  {% if success %}
+    <div class="message success">{{ success }}</div>
+  {% endif %}
+</body>
+</html>

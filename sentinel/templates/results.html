@@ -1,0 +1,611 @@
+<!--<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Video Analysis Results</title>
+  <style>
+    body {
+      display: flex;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    .video-section { flex: 2; padding: 20px; }
+    .results-section { flex: 1; padding: 20px; border-left: 2px solid #ddd; overflow-y: auto; height: 100vh; }
+    video { width: 100%; border: 2px solid #333; border-radius: 6px; background:#000; }
+    .person-block { margin-bottom: 20px; }
+    .person-block h3 { margin: 0 0 10px 0; }
+    .faces { display: flex; flex-wrap: wrap; gap: 5px; }
+    .faces img { width: 80px; height: 80px; object-fit: cover; border: 1px solid #ccc; border-radius: 4px; }
+    .timestamps { font-size: 0.9em; color: #666; }
+    .transcript { margin-top: 30px; }
+    .transcript pre { white-space: pre-wrap; font-size: 0.95em; }
+    .notice { padding: 10px; margin: 10px 0; border-radius: 6px; background: #f7f7f7; color: #333; }
+    .error { color: #a00; }
+    .small { font-size: 0.9em; color:#444; }
+    .retry-btn { margin-top:8px; padding:6px 10px; border-radius:4px; border:1px solid #888; background:#fff; cursor:pointer;}
+  </style>
+</head>
+<body>
+  
+  <div id="task" data-task-id="{{ task_id }}"></div>
+
+  
+  <div class="video-section">
+    <h2>Processed Video</h2>
+    <div id="video-container" class="notice">
+      <p id="video-placeholder">Processing video... (this page polls for updates automatically)</p>
+    </div>
+  </div>
+
+ 
+  <div class="results-section">
+    <h2>Analysis Results</h2>
+    <div id="faces-container" class="notice">
+      <p>Waiting for results...</p>
+    </div>
+
+    <div class="transcript">
+      <h3>Transcript</h3>
+      <pre id="transcript-text">Waiting...</pre>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const taskEl = document.getElementById("task");
+  const taskId = taskEl ? taskEl.dataset.taskId : "";
+  const mediaUrlTemplate = "{{ MEDIA_URL }}"; // injected by Django, e.g. "/media/"
+
+  // Poll interval handle
+  let pollInterval = null;
+  const POLL_MS = 3000;
+
+  // Utilities
+  function normalizeMediaUrl(base, relPath) {
+    if (!relPath) return null;
+    // if already absolute URL (http/https) or starts with leading slash, return as-is
+    if (relPath.startsWith("http://") || relPath.startsWith("https://")) return relPath;
+    if (relPath.startsWith("/")) return relPath;
+
+    let baseUrl = base || "/media/";
+    if (!baseUrl.endsWith("/")) baseUrl = baseUrl + "/";
+    // remove leading slashes from relPath
+    return baseUrl + relPath.replace(/^\/+/, "");
+  }
+
+  // HEAD-check the video URL to confirm existence before assigning to <video>.
+  // Returns promise that resolves to boolean (exists)
+  async function urlExists(url) {
+    try {
+      const resp = await fetch(url, { method: "HEAD" });
+      return resp.ok;
+    } catch (e) {
+      console.warn("HEAD check failed for", url, e);
+      // fallback: try a lightweight GET for small servers (may be blocked). We'll consider failure as non-exist.
+      return false;
+    }
+  }
+
+  function renderErrorUI(message) {
+    document.getElementById("video-container").innerHTML = `<div class="error">Error: ${message}</div>`;
+    document.getElementById("faces-container").innerHTML = `<p>No results due to error.</p>`;
+    document.getElementById("transcript-text").innerText = "Error.";
+  }
+
+  function renderFaces(results) {
+    const facesDiv = document.getElementById("faces-container");
+    let facesHtml = "";
+    if (results.persons && Object.keys(results.persons).length > 0) {
+      for (const [pid, pdata] of Object.entries(results.persons)) {
+        facesHtml += `<div class="person-block"><h3>${pid}</h3>`;
+        facesHtml += `<div class="faces">`;
+        if (Array.isArray(pdata.faces) && pdata.faces.length) {
+          for (const face of pdata.faces) {
+            const faceUrl = normalizeMediaUrl(mediaUrlTemplate, face);
+            facesHtml += `<img src="${faceUrl}" alt="${pid}">`;
+          }
+        }
+        facesHtml += `</div>`;
+
+        facesHtml += `<div class="timestamps"><strong>Appearances:</strong><ul>`;
+        if (Array.isArray(pdata.timestamps)) {
+          for (const ts of pdata.timestamps) {
+            facesHtml += `<li>${ts.start}s – ${ts.end}s</li>`;
+          }
+        }
+        facesHtml += `</ul></div></div>`;
+      }
+    } else {
+      facesHtml = "<p>No faces detected.</p>";
+    }
+    facesDiv.innerHTML = facesHtml;
+  }
+
+  async function attachVideoToDOM(videoPath) {
+    const videoContainer = document.getElementById("video-container");
+    videoContainer.innerHTML = ""; // clear placeholder
+
+    const url = normalizeMediaUrl(mediaUrlTemplate, videoPath);
+    if (!url) {
+      videoContainer.innerHTML = `<div class="error">No video path provided.</div>`;
+      return false;
+    }
+
+    // Check existence quickly
+    const exists = await urlExists(url);
+    if (!exists) {
+      // show helpful message + direct link for debugging
+      videoContainer.innerHTML = `
+        <div class="error">Annotated video not found at <code>${url}</code>.</div>
+        <div class="small">If this path exists on disk, check MEDIA_URL/MEDIA_ROOT and the JSON 'video_path' value.</div>
+        <button id="retry-video" class="retry-btn">Retry Checking Video</button>
+      `;
+      document.getElementById("retry-video").addEventListener("click", async () => {
+        document.getElementById("video-container").innerHTML = `<p>Retrying...</p>`;
+        const ok = await attachVideoToDOM(videoPath);
+        if (!ok) setTimeout(() => { /* keep message */ }, 500);
+      });
+      return false;
+    }
+
+    // Build a <video> element and assign src properly, then call load()
+    const video = document.createElement("video");
+    video.setAttribute("controls", "");
+    video.setAttribute("width", "100%");
+    // Use src directly on <video> to avoid issues with <source> not updating in some browsers
+    video.src = url;
+
+    // handle playback/load errors
+    video.addEventListener("error", (e) => {
+      console.error("Video element error", e);
+      videoContainer.innerHTML = `<div class="error">Failed to load video (see console). <a href="${url}" target="_blank">Open raw file</a></div>`;
+    });
+
+    // optional: show a small 'open in new tab' link
+    const openLink = document.createElement("div");
+    openLink.className = "small";
+    openLink.innerHTML = ` <a href="${url}" target="_blank">Open annotated video in new tab</a>`;
+
+    videoContainer.appendChild(video);
+    videoContainer.appendChild(openLink);
+
+    // trigger load and attempt to prime the player
+    try { video.load(); } catch (e) { console.warn("video.load() failed:", e); }
+
+    return true;
+  }
+
+  // Render full results (faces + transcript + video)
+  async function renderResults(results) {
+    // faces + transcript quickly
+    renderFaces(results);
+    document.getElementById("transcript-text").innerText = results.transcript || "";
+
+    // attach video (HEAD-check then set src)
+    const ok = await attachVideoToDOM(results.video_path);
+    if (!ok) {
+      console.warn("Annotated video missing or inaccessible:", results.video_path);
+    }
+  }
+
+  // single status check run
+  async function checkStatus() {
+    if (!taskId) return;
+
+    try {
+      const url = `/task-status/${encodeURIComponent(taskId)}/`;
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) {
+        console.warn("Status fetch returned", res.status);
+        return;
+      }
+
+      const data = await res.json();
+      // debugging helper (comment out if noisy)
+      console.debug("task-status response:", data);
+
+      if (data.state === "SUCCESS") {
+        // stop polling immediately to prevent duplicate handling
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+
+        const results = data.results || {};
+        // If results object signals an error, render error
+        if (results && results.status === "error") {
+          renderErrorUI(results.error || "Task failed (error object).");
+          return;
+        }
+
+        // Render everything
+        await renderResults(results);
+        return;
+      }
+
+      if (data.state === "ERROR") {
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        renderErrorUI(data.message || "Task errored");
+        return;
+      }
+
+      // still processing: do nothing, wait for next tick
+    } catch (err) {
+      console.error("Error while polling task-status:", err);
+      // keep polling; network hiccups happen
+    }
+  }
+
+  // start immediate check and periodic polling
+  if (taskId) {
+    // run an immediate check
+    checkStatus();
+    // then poll regularly
+    pollInterval = setInterval(checkStatus, POLL_MS);
+  } else {
+    console.warn("No taskId found on page; not polling.");
+  }
+
+})();
+</script>
+</body>
+</html>-->
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Video Analysis Results</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    /* GENERAL STYLING */
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      height: 100vh;
+      background: #f5f6fa;
+      color: #333;
+    }
+    h2 { margin-top: 0; font-weight: 600; color: #2f3640; }
+    h3 { margin: 0 0 10px 0; color: #2f3640; }
+
+    /* LEFT: VIDEO */
+    .video-section {
+      flex: 2;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    #video-container {
+      background: #fff;
+      border-radius: 10px;
+      padding: 15px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    video {
+      width: 100%;
+      border-radius: 8px;
+      background: #000;
+    }
+
+    /* RIGHT: RESULTS */
+    .results-section {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      border-left: 1px solid #dcdde1;
+    }
+    #faces-container {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .person-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.1);
+      transition: transform 0.2s;
+    }
+    .person-card:hover { transform: translateY(-2px); }
+    .faces {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .faces img {
+      width: 70px;
+      height: 70px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .faces img:hover { transform: scale(1.1); }
+
+    .timestamps {
+      font-size: 0.85em;
+      color: #555;
+      margin-top: 5px;
+    }
+    .timestamps ul { padding-left: 20px; margin: 5px 0 0 0; }
+
+    /* TRANSCRIPT */
+    .transcript {
+      margin-top: 25px;
+      background: #fff;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .transcript span {
+      transition: background-color 0.2s ease;
+      cursor: pointer;
+    }
+    .highlight { background-color: #ffeaa7; }
+
+    /* ERROR/NOTICE */
+    .notice, .error {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+    .notice { background: #f1f2f6; color: #2f3640; }
+    .error { background: #ffcccc; color: #c0392b; }
+
+    .small {
+      font-size: 0.85em;
+      color: #7f8c8d;
+      margin-top: 8px;
+    }
+    .retry-btn {
+      margin-top: 8px;
+      padding: 6px 12px;
+      border-radius: 5px;
+      border: none;
+      background: #00a8ff;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .retry-btn:hover { background: #0097e6; }
+
+  </style>
+</head>
+<body>
+  <!-- Hidden div to safely pass task_id to JS -->
+  <div id="task" data-task-id="{{ task_id }}"></div>
+
+  <!-- LEFT: Video player -->
+  <div class="video-section">
+    <h2>Processed Video</h2>
+    <div id="video-container" class="notice">
+      <p id="video-placeholder">Processing video... (this page polls for updates automatically)</p>
+    </div>
+  </div>
+
+  <!-- RIGHT: Results -->
+  <div class="results-section">
+    <h2>Analysis Results</h2>
+    <div id="faces-container" class="notice">
+      <p>Waiting for results...</p>
+    </div>
+
+    <div class="transcript">
+      <h3>Transcript</h3>
+      <div id="transcript-text">Waiting...</div>
+    </div>
+  </div>
+
+<script>
+  (() => {
+    const taskEl = document.getElementById("task");
+    const taskId = taskEl ? taskEl.dataset.taskId : "";
+    const mediaUrlTemplate = "{{ MEDIA_URL }}";
+
+    let pollInterval = null;
+    const POLL_MS = 3000;
+    let transcriptSegments = [];
+    let videoEl = null;
+
+    function normalizeMediaUrl(base, relPath) {
+      if (!relPath) return null;
+      if (relPath.startsWith("http://") || relPath.startsWith("https://")) return relPath;
+      if (relPath.startsWith("/")) return relPath;
+      let baseUrl = base || "/media/";
+      if (!baseUrl.endsWith("/")) baseUrl = baseUrl + "/";
+      return baseUrl + relPath.replace(/^\/+/, "");
+    }
+
+    async function urlExists(url) {
+      try {
+        const resp = await fetch(url, { method: "HEAD" });
+        return resp.ok;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function renderErrorUI(message) {
+      document.getElementById("video-container").innerHTML = `<div class="error">Error: ${message}</div>`;
+      document.getElementById("faces-container").innerHTML = `<p>No results due to error.</p>`;
+      document.getElementById("transcript-text").innerText = "Error.";
+    }
+
+    function renderFaces(results) {
+      const facesDiv = document.getElementById("faces-container");
+      let facesHtml = "";
+      if (results.persons && Object.keys(results.persons).length > 0) {
+        for (const [pid, pdata] of Object.entries(results.persons)) {
+          facesHtml += `<div class="person-card"><h3>${pid}</h3>`;
+          facesHtml += `<div class="faces">`;
+          if (Array.isArray(pdata.faces) && pdata.faces.length) {
+            for (const face of pdata.faces) {
+              const faceUrl = normalizeMediaUrl(mediaUrlTemplate, face);
+              facesHtml += `<img src="${faceUrl}" alt="${pid}">`;
+            }
+          }
+          facesHtml += `</div>`;
+
+          facesHtml += `<div class="timestamps"><strong>Appearances:</strong><ul>`;
+          if (Array.isArray(pdata.timestamps)) {
+            for (const ts of pdata.timestamps) {
+              facesHtml += `<li>${ts.start}s – ${ts.end}s</li>`;
+            }
+          }
+          facesHtml += `</ul></div></div>`;
+        }
+      } else {
+        facesHtml = "<p>No faces detected.</p>";
+      }
+      facesDiv.innerHTML = facesHtml;
+    }
+
+    async function attachVideoToDOM(videoPath) {
+      const videoContainer = document.getElementById("video-container");
+      videoContainer.innerHTML = "";
+
+      const url = normalizeMediaUrl(mediaUrlTemplate, videoPath);
+      if (!url) {
+        videoContainer.innerHTML = `<div class="error">No video path provided.</div>`;
+        return false;
+      }
+
+      const exists = await urlExists(url);
+      if (!exists) {
+        videoContainer.innerHTML = `
+          <div class="error">Annotated video not found at <code>${url}</code>.</div>
+          <div class="small">If this path exists on disk, check MEDIA_URL/MEDIA_ROOT and the JSON 'video_path' value.</div>
+          <button id="retry-video" class="retry-btn">Retry Checking Video</button>
+        `;
+        document.getElementById("retry-video").addEventListener("click", async () => {
+          document.getElementById("video-container").innerHTML = `<p>Retrying...</p>`;
+          const ok = await attachVideoToDOM(videoPath);
+        });
+        return false;
+      }
+
+      videoEl = document.createElement("video");
+      videoEl.setAttribute("controls", "");
+      videoEl.setAttribute("width", "100%");
+      videoEl.src = url;
+
+      videoEl.addEventListener("error", (e) => {
+        videoContainer.innerHTML = `<div class="error">Failed to load video (see console). <a href="${url}" target="_blank">Open raw file</a></div>`;
+      });
+
+      const openLink = document.createElement("div");
+      openLink.className = "small";
+      openLink.innerHTML = `<a href="${url}" target="_blank">Open annotated video in new tab</a>`;
+
+      videoContainer.appendChild(videoEl);
+      videoContainer.appendChild(openLink);
+
+      try { videoEl.load(); } catch (e) {}
+
+      return true;
+    }
+
+    function renderTranscript(segments) {
+      const transcriptDiv = document.getElementById("transcript-text");
+      transcriptDiv.innerHTML = "";
+      transcriptSegments = segments;
+
+      segments.forEach((seg, idx) => {
+        const span = document.createElement("span");
+        span.textContent = seg.text + " ";
+        span.dataset.start = seg.start;
+        span.dataset.end = seg.end;
+        span.addEventListener("click", () => {
+          if (videoEl) videoEl.currentTime = parseFloat(seg.start);
+        });
+        transcriptDiv.appendChild(span);
+      });
+    }
+
+    function highlightTranscript(currentTime) {
+      const spans = document.querySelectorAll("#transcript-text span");
+      spans.forEach(span => {
+        const start = parseFloat(span.dataset.start);
+        const end = parseFloat(span.dataset.end);
+        if (currentTime >= start && currentTime <= end) {
+          span.classList.add("highlight");
+        } else {
+          span.classList.remove("highlight");
+        }
+      });
+    }
+
+    function setupVideoHighlighting() {
+      if (videoEl) {
+        videoEl.addEventListener("timeupdate", () => {
+          highlightTranscript(videoEl.currentTime);
+        });
+      }
+    }
+
+    async function renderResults(results) {
+      renderFaces(results);
+
+      if (results.transcript_segments && Array.isArray(results.transcript_segments)) {
+        renderTranscript(results.transcript_segments);
+      } else {
+        document.getElementById("transcript-text").innerText = results.transcript || "";
+      }
+
+      const ok = await attachVideoToDOM(results.video_path);
+      if (ok) setupVideoHighlighting();
+    }
+
+    async function checkStatus() {
+      if (!taskId) return;
+
+      try {
+        const url = `/task-status/${encodeURIComponent(taskId)}/`;
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.state === "SUCCESS") {
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+          }
+
+          const results = data.results || {};
+          if (results && results.status === "error") {
+            renderErrorUI(results.error || "Task failed (error object).");
+            return;
+          }
+          await renderResults(results);
+          return;
+        }
+
+        if (data.state === "ERROR") {
+          if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+          renderErrorUI(data.message || "Task errored");
+          return;
+        }
+
+      } catch (err) {
+        console.error("Error while polling task-status:", err);
+      }
+    }
+
+    if (taskId) {
+      checkStatus();
+      pollInterval = setInterval(checkStatus, POLL_MS);
+    }
+  })();
+</script>
+</body>
+</html>

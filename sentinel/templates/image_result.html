@@ -1,0 +1,26 @@
+<!-- templates/image_result.html -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Image Result</title></head>
+<body>
+  <h1>Image Result</h1>
+  {% if no_face %}
+    <p>No faces detected in the uploaded image.</p>
+  {% elif no_landmarks %}
+    <p>Face detected but landmarks missing (cannot embed).</p>
+  {% elif embedding_error %}
+    <p>Failed to generate embedding for the detected face.</p>
+  {% else %}
+    <img src="/media/{{ media_url }}" style="max-width:480px" />
+    {% if match %}
+      <h2>Match found</h2>
+      <p><strong>ID:</strong> {{ match.id }}</p>
+      <p><strong>Distance:</strong> {{ match.distance }}</p>
+      <p><strong>Metadata:</strong> {{ match.metadata }}</p>
+    {% else %}
+      <h2>No match found</h2>
+    {% endif %}
+  {% endif %}
+  <p><a href="{% url 'core:home' %}">Upload another</a></p>
+</body>
+</html>

@@ -1,0 +1,34 @@
+name: super_final
+channels:
+  - pytorch
+  - conda-forge
+  - nvidia # Keep for CUDA
+  - defaults
+dependencies:
+  # CORE LIBRARIES
+  - python=3.11
+  - pytorch-cuda=12.1 # Explicitly request PyTorch with CUDA
+  - pytorch
+  - pip
+
+  # AI PIPELINE PACKAGES
+  - ultralytics
+  - opencv
+  - onnxruntime
+  - scikit-image
+  - faiss-cpu
+  - moviepy
+
+  # WEB & DB PACKAGES
+  - django
+  - chromadb
+  - uvicorn
+
+  # PIP-ONLY PACKAGES
+  - pip
+  - pip:
+    - torch==2.5.1+cu121
+    - torchvision==0.20.1+cu121
+    - torchaudio==2.5.1+cu121
+    - --extra-index-url https://download.pytorch.org/whl/cu121
+    - openai-whisper
