@@ -86,11 +86,26 @@ logging.basicConfig(level=logging.INFO)
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 try:
-    model = whisper.load_model("small", device=DEVICE)
-    logger.info(f"MODEL: {model} loaded")
+    # Load fine-tuned Tamil model from project models folder
+    import transformers
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    TAMIL_MODEL_PATH = os.path.join(SCRIPT_DIR, "models", "whisper-tamil")
+    
+    # Load using transformers for fine-tuned model
+    from transformers import WhisperProcessor, WhisperForConditionalGeneration
+    processor = WhisperProcessor.from_pretrained(TAMIL_MODEL_PATH)
+    model = WhisperForConditionalGeneration.from_pretrained(TAMIL_MODEL_PATH).to(DEVICE)
+    logger.info(f"Tamil fine-tuned MODEL loaded from {TAMIL_MODEL_PATH}")
+    USE_TRANSFORMERS = True
 except Exception as e:
-    logger.error(f" Unable to load model, ERROR: {e}")
-    model=None
+    logger.error(f" Unable to load Tamil model: {e}, falling back to default")
+    try:
+        model = whisper.load_model("small", device=DEVICE)
+        logger.info("Loaded default Whisper small model")
+        USE_TRANSFORMERS = False
+    except:
+        model = None
+        USE_TRANSFORMERS = False
 
 def eat_video(video_path):
     """
@@ -120,16 +135,24 @@ def eat_video(video_path):
 
         subprocess.run(command, check=True, capture_output=True, text=True)
 
-        transcription_result = model.transcribe(
-            temp_audio_path,
-            word_timestamps=True,
-            verbose=True
-        )
-
-        full_text = transcription_result.get('text', '').strip()
-        segments = transcription_result.get('segments', [])
-
-        return {"text": full_text, "segments": segments}
+        if USE_TRANSFORMERS:
+            # Use transformers model
+            import librosa
+            audio, sr = librosa.load(temp_audio_path, sr=16000)
+            input_features = processor(audio, sampling_rate=16000, return_tensors="pt").input_features.to(DEVICE)
+            predicted_ids = model.generate(input_features)
+            transcription = processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
+            return {"text": transcription, "segments": []}
+        else:
+            # Use original whisper model
+            transcription_result = model.transcribe(
+                temp_audio_path,
+                word_timestamps=True,
+                verbose=True
+            )
+            full_text = transcription_result.get('text', '').strip()
+            segments = transcription_result.get('segments', [])
+            return {"text": full_text, "segments": segments}
 
     except FileNotFoundError:
         logger.error("FATAL: ffmpeg not found. Please ensure ffmpeg is installed and in your system's PATH.")

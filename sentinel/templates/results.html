@@ -562,8 +562,12 @@
         document.getElementById("transcript-text").innerText = results.transcript || "";
       }
 
-      const ok = await attachVideoToDOM(results.video_path);
-      if (ok) setupVideoHighlighting();
+      if (results.audio_only) {
+        document.getElementById("video-container").innerHTML = '<div class="notice"><p>Audio transcription only (no video)</p></div>';
+      } else {
+        const ok = await attachVideoToDOM(results.video_path);
+        if (ok) setupVideoHighlighting();
+      }
     }
 
     async function checkStatus() {

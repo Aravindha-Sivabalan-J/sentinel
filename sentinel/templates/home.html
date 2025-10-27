@@ -1,14 +1,278 @@
-<!-- templates/home.html -->
 <!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Upload</title></head>
+<head>
+  <meta charset="utf-8">
+  <title>SENTINEL - Home</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+    h1 { color: #333; }
+    .section { margin: 30px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+    .section h2 { margin-top: 0; color: #555; }
+    input[type="text"], input[type="file"] { padding: 8px; margin: 5px 0; width: 300px; }
+    button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    .error { color: red; margin: 10px 0; }
+    .success { color: green; margin: 10px 0; }
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+    .modal-content { background: white; margin: 5% auto; padding: 20px; width: 80%; max-width: 800px; border-radius: 8px; max-height: 80vh; overflow-y: auto; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .close { font-size: 28px; font-weight: bold; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background: #f2f2f2; }
+    tr:hover { background: #f5f5f5; }
+    .selected { background: #d4edda !important; }
+    .loading { display: none; margin: 10px 0; }
+  </style>
+</head>
 <body>
-  <h1>Upload image or video</h1>
-  {% if error %}<p style="color:red">{{ error }}</p>{% endif %}
-  <form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    <input type="file" name="file" required />
-    <button type="submit">Upload</button>
-  </form>
+  <h1>SENTINEL - Video & Audio Analysis</h1>
+
+  <!-- Section 1: Upload Image/Video -->
+  <div class="section">
+    <h2>Upload Image or Video</h2>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <input type="file" name="file" required />
+      <button type="submit">Upload & Process</button>
+    </form>
+  </div>
+
+  <!-- Section 2: YouTube Video Download -->
+  <div class="section">
+    <h2>Download YouTube Video</h2>
+    <div id="youtube-message"></div>
+    <input type="text" id="youtube-url" placeholder="Enter YouTube URL" />
+    <input type="text" id="video-name" placeholder="Enter video name" />
+    <button id="download-btn" onclick="downloadYouTube()">Download Video</button>
+    <div id="youtube-loading" class="loading">Downloading...</div>
+  </div>
+
+  <!-- Section 3: Upload Audio to Database -->
+  <div class="section">
+    <h2>Upload Audio to Database</h2>
+    <div id="audio-message"></div>
+    <input type="file" id="audio-file" accept=".mp3,.wav,.flac,.m4a" />
+    <input type="text" id="audio-name" placeholder="Enter audio name" />
+    <button id="upload-audio-btn" onclick="uploadAudio()">Upload Audio to DB</button>
+    <div id="audio-loading" class="loading">Processing...</div>
+  </div>
+
+  <!-- Section 4: Process from Database -->
+  <div class="section">
+    <h2>Process Media from Database</h2>
+    <button onclick="openModal()">Upload from DB</button>
+  </div>
+
+  <!-- Section 5: Enroll Person -->
+  <div class="section">
+    <h2>Enroll New Person</h2>
+    <button onclick="window.location.href='{% url 'core:enroll_person' %}'">Go to Enrollment</button>
+  </div>
+
+  <!-- Modal for DB Media Selection -->
+  <div id="media-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Select Media from Database</h2>
+        <span class="close" onclick="closeModal()">&times;</span>
+      </div>
+      <div id="modal-message"></div>
+      <table id="media-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Date</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="media-list"></tbody>
+      </table>
+      <button onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+
+  <script>
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    async function downloadYouTube() {
+      const url = document.getElementById('youtube-url').value;
+      const name = document.getElementById('video-name').value;
+      const btn = document.getElementById('download-btn');
+      const loading = document.getElementById('youtube-loading');
+      const msgDiv = document.getElementById('youtube-message');
+
+      if (!url || !name) {
+        msgDiv.innerHTML = '<p class="error">Please enter both URL and name</p>';
+        return;
+      }
+
+      btn.disabled = true;
+      loading.style.display = 'block';
+      msgDiv.innerHTML = '';
+
+      try {
+        const response = await fetch('{% url "core:download_youtube" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: `youtube_url=${encodeURIComponent(url)}&video_name=${encodeURIComponent(name)}`
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          msgDiv.innerHTML = `<p class="success">${data.message}</p>`;
+          document.getElementById('youtube-url').value = '';
+          document.getElementById('video-name').value = '';
+        } else {
+          msgDiv.innerHTML = `<p class="error">${data.error}</p>`;
+        }
+      } catch (error) {
+        msgDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+      } finally {
+        btn.disabled = false;
+        loading.style.display = 'none';
+      }
+    }
+
+    async function uploadAudio() {
+      const fileInput = document.getElementById('audio-file');
+      const name = document.getElementById('audio-name').value;
+      const btn = document.getElementById('upload-audio-btn');
+      const loading = document.getElementById('audio-loading');
+      const msgDiv = document.getElementById('audio-message');
+
+      if (!fileInput.files[0] || !name) {
+        msgDiv.innerHTML = '<p class="error">Please select a file and enter a name</p>';
+        return;
+      }
+
+      btn.disabled = true;
+      loading.style.display = 'block';
+      msgDiv.innerHTML = '';
+
+      const formData = new FormData();
+      formData.append('audio_file', fileInput.files[0]);
+      formData.append('audio_name', name);
+
+      try {
+        const response = await fetch('{% url "core:upload_audio" %}', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+          body: formData
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          msgDiv.innerHTML = `<p class="success">${data.message}</p>`;
+          fileInput.value = '';
+          document.getElementById('audio-name').value = '';
+        } else {
+          msgDiv.innerHTML = `<p class="error">${data.error}</p>`;
+        }
+      } catch (error) {
+        msgDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+      } finally {
+        btn.disabled = false;
+        loading.style.display = 'none';
+      }
+    }
+
+    async function openModal() {
+      const modal = document.getElementById('media-modal');
+      const msgDiv = document.getElementById('modal-message');
+      const tbody = document.getElementById('media-list');
+
+      modal.style.display = 'block';
+      msgDiv.innerHTML = '<p>Loading...</p>';
+      tbody.innerHTML = '';
+
+      try {
+        const response = await fetch('{% url "core:get_db_media" %}');
+        const data = await response.json();
+
+        if (data.media && data.media.length > 0) {
+          msgDiv.innerHTML = '';
+          data.media.forEach(item => {
+            const row = tbody.insertRow();
+            row.innerHTML = `
+              <td>${item.name}</td>
+              <td>${item.type}</td>
+              <td>${item.date}</td>
+              <td><button onclick="selectMedia(${item.id}, '${item.type}', this)">Select</button></td>
+            `;
+          });
+        } else {
+          msgDiv.innerHTML = '<p>No media found in database</p>';
+        }
+      } catch (error) {
+        msgDiv.innerHTML = `<p class="error">Error loading media: ${error.message}</p>`;
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('media-modal').style.display = 'none';
+    }
+
+    async function selectMedia(id, type, btn) {
+      const rows = document.querySelectorAll('#media-list tr');
+      rows.forEach(r => r.classList.remove('selected'));
+      btn.closest('tr').classList.add('selected');
+
+      btn.disabled = true;
+      btn.textContent = 'Processing...';
+
+      try {
+        const response = await fetch('{% url "core:process_db_media" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: `media_id=${id}&media_type=${type}`
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          if (data.task_id) {
+            closeModal();
+            window.location.href = `/results/${data.task_id}/`;
+          }
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Select';
+      }
+    }
+
+    window.onclick = function(event) {
+      const modal = document.getElementById('media-modal');
+      if (event.target === modal) {
+        closeModal();
+      }
+    }
+  </script>
 </body>
 </html>

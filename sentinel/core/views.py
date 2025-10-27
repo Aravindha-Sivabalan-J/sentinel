@@ -1,14 +1,19 @@
-import os, uuid, json, cv2
+import os, uuid, json, cv2, subprocess
 from celery.result import AsyncResult
 from django.conf import settings
 from django.shortcuts import render, redirect
+import logging
+import numpy as np
 from django.http import JsonResponse
 from analysis_pipeline.detector import detect_faces
 from analysis_pipeline.embedder import ArcFaceEmbedder
 from analysis_pipeline.vector_db import ChromaDBManager
 from analysis_pipeline.processor import expand_box, is_blurry, prepare_face_for_arcface
-
+from .models import Video, AudioFile
 from .tasks import process_video_task
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # Initialize DB & embedder once
 embedder = ArcFaceEmbedder()
@@ -51,37 +56,28 @@ def home_view(request):
         })
 
     face = faces[0]
-    box, landmarks = face["box"], face["landmarks"]
-    image = cv2.imread(file_path)
-    if image is None:
+    aligned_rgb = face["aligned_face"]
+    
+    if aligned_rgb is None or aligned_rgb.size == 0:
         return render(request, "image_result.html", {
             "media_url": os.path.relpath(file_path, MEDIA_ROOT),
             "read_error": True,
         })
 
-    x1, y1, x2, y2 = expand_box(box, image.shape, margin=0.18)
-    crop = image[y1:y2, x1:x2]
-    if is_blurry(crop, thresh=50):
+    if is_blurry(aligned_rgb, thresh=50):
         return render(request, "image_result.html", {
             "media_url": os.path.relpath(file_path, MEDIA_ROOT),
             "blurry": True,
         })
 
-    aligned = embedder.align_face(crop, landmarks)
-    emb = embedder.get_embedding(aligned)
+    emb = embedder.get_embedding(aligned_rgb)
     if emb is None:
         return render(request, "image_result.html", {
             "media_url": os.path.relpath(file_path, MEDIA_ROOT),
             "embedding_error": True,
         })
 
-    match_id, distance, metadata = db.search_person(
-        emb, k=5, threshold=0.4, verify_top_k=3
-    )
-
-    match_id, distance, metadata = db.search_person(
-        emb, k=5, threshold=0.4, verify_top_k=3
-    )
+    match_id, distance, metadata = db.search_person(emb, k=5, threshold=0.30)
     match = None if match_id == "NO MATCH FOUND" else {
         "id": match_id, "distance": distance, "metadata": metadata
     }
@@ -145,15 +141,35 @@ def enroll_view(request):
             return render(request, "enroll.html", {"error": "Upload an image with exactly one face."})
 
         face = faces[0]
-        box, landmarks = face["box"], face["landmarks"]
-        image = cv2.imread(image_path)
-        if image is None:
-            return render(request, "enroll.html", {"error": "Failed to read uploaded image."})
+        aligned_rgb = face["aligned_face"]  # Already aligned by detector
+        
+        if aligned_rgb is None or aligned_rgb.size == 0:
+            return render(request, "enroll.html", {"error": "Face alignment failed."})
 
-        x1, y1, x2, y2 = expand_box(box, image.shape, margin=0.18)
-        crop = image[y1:y2, x1:x2]
-        aligned = embedder.align_face(crop, landmarks)
-        emb = embedder.get_embedding(prepare_face_for_arcface(aligned))
+        # --- DEBUG: save aligned face to inspect ---
+        import pathlib
+        dbg_dir = pathlib.Path("/tmp/face_debug")
+        dbg_dir.mkdir(parents=True, exist_ok=True)
+        dbg_path = dbg_dir / f"{person_id}.jpg"
+
+        try:
+            img_to_write = cv2.cvtColor(aligned_rgb, cv2.COLOR_RGB2BGR)
+            success = cv2.imwrite(str(dbg_path), img_to_write)
+            if success:
+                logger.info(f"[DEBUG_FILE] Saved aligned face for {person_id} at {dbg_path}")
+            else:
+                logger.error(f"[DEBUG_FILE] Failed to save aligned face for {person_id}")
+        except Exception as e:
+            logger.exception(f"[DEBUG_FILE] Exception while saving face debug for {person_id}: {e}")
+        # --- end debug ---
+
+        # Generate embedding directly from aligned RGB face
+        emb = embedder.get_embedding(aligned_rgb)
+        if emb is None:
+            return render(request, "enroll.html", {"error": "Failed to generate embedding."})
+
+        # Log embedding first 10 values + norm for verification
+        logger.info(f"[ENROLL_DEBUG] person={person_id} emb_norm={np.linalg.norm(emb):.6f} first10={emb[:10]}")
         if emb is None:
             return render(request, "enroll.html", {"error": "Failed to generate embedding."})
 
@@ -164,15 +180,136 @@ def enroll_view(request):
 
 
 def task_status(request, task_id):
-    result = AsyncResult(task_id)
-    if not result.ready():
-        return JsonResponse({"state": result.state})
-
     results_file = os.path.join(RESULTS_DIR, f"{task_id}.json")
+    
     if os.path.exists(results_file):
         with open(results_file, "r", encoding="utf-8") as f:
             data = json.load(f)
         if data.get("status") == "error":
             return JsonResponse({"state": "ERROR", "message": data.get("error")})
         return JsonResponse({"state": "SUCCESS", "results": data})
+    
+    result = AsyncResult(task_id)
+    if not result.ready():
+        return JsonResponse({"state": result.state})
+    
     return JsonResponse({"state": "ERROR", "message": "No results file found"})
+
+
+def download_youtube_video(request):
+    if request.method == "POST":
+        url = request.POST.get("youtube_url")
+        name = request.POST.get("video_name")
+        
+        if not url or not name:
+            return JsonResponse({"error": "URL and name are required"}, status=400)
+        
+        try:
+            save_dir = os.path.join(MEDIA_ROOT, "media_files", "videos")
+            os.makedirs(save_dir, exist_ok=True)
+            
+            output_path = os.path.join(save_dir, f"{name}.mp4")
+            
+            cmd = ["yt-dlp", "-f", "best", "-o", output_path, url]
+            subprocess.run(cmd, check=True, capture_output=True)
+            
+            video = Video.objects.create(name=name, file_path=output_path)
+            return JsonResponse({"success": True, "message": f"Video '{name}' downloaded successfully"})
+        except Exception as e:
+            logger.error(f"YouTube download error: {e}")
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "Invalid request"}, status=400)
+
+
+def upload_audio_to_db(request):
+    if request.method == "POST":
+        audio_file = request.FILES.get("audio_file")
+        name = request.POST.get("audio_name")
+        
+        if not audio_file or not name:
+            return JsonResponse({"error": "Audio file and name are required"}, status=400)
+        
+        try:
+            save_dir = os.path.join(MEDIA_ROOT, "media_files", "audio")
+            os.makedirs(save_dir, exist_ok=True)
+            
+            temp_path = os.path.join(save_dir, f"temp_{audio_file.name}")
+            with open(temp_path, "wb") as f:
+                for chunk in audio_file.chunks():
+                    f.write(chunk)
+            
+            output_path = os.path.join(save_dir, f"{name}.wav")
+            cmd = ["ffmpeg", "-i", temp_path, "-ar", "16000", "-ac", "1", "-acodec", "pcm_s16le", "-y", output_path]
+            subprocess.run(cmd, check=True, capture_output=True)
+            
+            os.remove(temp_path)
+            
+            audio = AudioFile.objects.create(name=name, file_path=output_path)
+            return JsonResponse({"success": True, "message": f"Audio '{name}' uploaded successfully"})
+        except Exception as e:
+            logger.error(f"Audio upload error: {e}")
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "Invalid request"}, status=400)
+
+
+def get_db_media(request):
+    videos = Video.objects.all().values("id", "name", "download_date")
+    audios = AudioFile.objects.all().values("id", "name", "upload_date")
+    
+    media_list = []
+    for v in videos:
+        media_list.append({
+            "id": v["id"],
+            "name": v["name"],
+            "type": "video",
+            "date": v["download_date"].strftime("%Y-%m-%d %H:%M:%S")
+        })
+    for a in audios:
+        media_list.append({
+            "id": a["id"],
+            "name": a["name"],
+            "type": "audio",
+            "date": a["upload_date"].strftime("%Y-%m-%d %H:%M:%S")
+        })
+    
+    return JsonResponse({"media": media_list})
+
+
+def process_db_media(request):
+    if request.method == "POST":
+        media_id = request.POST.get("media_id")
+        media_type = request.POST.get("media_type")
+        
+        if not media_id or not media_type:
+            return JsonResponse({"error": "Media ID and type are required"}, status=400)
+        
+        try:
+            if media_type == "video":
+                video = Video.objects.get(id=media_id)
+                task = process_video_task.delay(video.file_path)
+                return JsonResponse({"success": True, "task_id": task.id})
+            elif media_type == "audio":
+                audio = AudioFile.objects.get(id=media_id)
+                from analysis_pipeline.transcriber import eat_video
+                result = eat_video(audio.file_path)
+                transcript = result.get("text", "") if isinstance(result, dict) else result
+                
+                task_id = str(uuid.uuid4())
+                result_path = os.path.join(RESULTS_DIR, f"{task_id}.json")
+                audio_result = {
+                    "status": "ok",
+                    "transcript": transcript,
+                    "persons": {},
+                    "video_path": None,
+                    "audio_only": True
+                }
+                with open(result_path, "w", encoding="utf-8") as f:
+                    json.dump(audio_result, f, ensure_ascii=False, indent=2)
+                
+                return JsonResponse({"success": True, "task_id": task_id})
+        except Exception as e:
+            logger.error(f"Process DB media error: {e}")
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "Invalid request"}, status=400)

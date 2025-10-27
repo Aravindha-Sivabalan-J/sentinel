@@ -55,3 +55,21 @@ class TimestampLog(models.Model):
 
     def __str__(self):
         return f"{self.detected_person.identity} from {self.start_time:.2f}s to {self.end_time:.2f}s"
+
+# Model for storing downloaded YouTube videos
+class Video(models.Model):
+    name = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=500)
+    download_date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.download_date}"
+
+# Model for storing uploaded audio files
+class AudioFile(models.Model):
+    name = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=500)
+    upload_date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.upload_date}"

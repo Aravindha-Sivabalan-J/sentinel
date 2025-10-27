@@ -136,16 +136,8 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 
-# **KEY FIX: Acknowledge immediately when task is RECEIVED (not when completed)**
-CELERY_ACKS_LATE = False
 CELERY_TASK_ACKS_LATE = False
-CELERY_TASK_REJECT_ON_WORKER_LOST = True
-
-# **REMOVE these conflicting lowercase versions:**
-# task_acks_late = False  # DELETE this line
-# task_reject_on_worker_lost = False  # DELETE this line
-
-# Track task start for visibility
+CELERY_TASK_REJECT_ON_WORKER_LOST = False
 CELERY_TASK_TRACK_STARTED = True
 
 # **KEY FIX: Better connection stability for long tasks**

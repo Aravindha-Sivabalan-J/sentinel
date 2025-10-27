@@ -1,125 +1,126 @@
-# sentinel/analysis_pipeline/detector.py
-
-from ultralytics import YOLO
+# analysis_pipeline/detector.py
 import logging
 import os
 import cv2
+import numpy as np
+from ultralytics import YOLO
+from skimage import transform as trans
 
-# --- Initialization ---
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# This will hold our loaded model
+# --- Load YOLOv8 Face Model ---
 yolo_model = None
 
 try:
-    # Build robust path to the model file relative to project root
     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(SCRIPT_DIR, 'models', 'yolov8n-face.pt')  # <-- FIXED
+    model_path = os.path.join(SCRIPT_DIR, "models", "yolov8n-face.pt")
 
     if not os.path.exists(model_path):
-        logger.error(f"FATAL: YOLOv8 model file not found at {model_path}")
-        logger.error("Please download 'yolov8n-face.pt' and place it in the 'analysis_pipeline/models/' directory.")
-        yolo_model = None
+        logger.error(f"FATAL: YOLOv8 model not found at {model_path}")
+        logger.error("Download 'yolov8n-face.pt' into 'analysis_pipeline/models/' directory.")
     else:
-        from ultralytics import YOLO
-        yolo_model = YOLO(model_path)  # don’t force `.to('cuda')`, Ultralytics auto-selects
-        logger.info(f"YOLOv8 face detection model loaded successfully from {model_path}")
+        yolo_model = YOLO(model_path)
+        logger.info(f"YOLOv8 face detection model loaded from {model_path}")
 
 except Exception as e:
+    logger.exception("Failed to load YOLOv8 model:")
     yolo_model = None
-    logger.error(f"Failed to load YOLOv8 model: {e}", exc_info=True)
 
+# ArcFace standard 5-point template
+ARCFACE_DST = np.array([
+    [38.2946, 51.6963], [73.5318, 51.5014],
+    [56.0252, 71.7366], [41.5493, 92.3655],
+    [70.7299, 92.2041]], dtype=np.float32)
 
 
 def detect_faces(image_input):
     """
-    Detects faces in an image using a YOLOv8 model.
-    Accepts either a file path or a pre-loaded image in NumPy array format.
-
-    Args:
-        image_input (str or numpy.ndarray): The file path or image array.
-
-    Returns:
-        list: A list of dictionaries, where each dictionary contains the 'box'
-              and 'landmarks' for a detected face.
+    Detect faces using YOLOv8n-face and align to ArcFace standard template.
+    Returns list with aligned 112x112 RGB faces ready for embedding.
     """
     if yolo_model is None:
-        logger.error("YOLOv8 model is not loaded. Cannot detect faces.")
+        logger.error("YOLOv8 model not loaded.")
         return []
 
     try:
-        # Perform inference with the model.
-        # The 'conf=0.5' means we only consider detections with > 50% confidence.
-        results = yolo_model(image_input, conf=0.5, verbose=False)
-
-        detected_faces = []
-        # The result object contains all the information. We need to parse it.
-        for result in results:
-            # Get bounding boxes in [x1, y1, x2, y2] format
-            boxes = result.boxes.xyxy.cpu().numpy()
-            
-            # Get landmarks (if available)
-            if result.keypoints is not None:
-                landmarks_data = result.keypoints.xy.cpu().numpy()
-            else:
-                # Create a placeholder if no landmarks are detected
-                landmarks_data = [None] * len(boxes)
-
-            for box, landmarks in zip(boxes, landmarks_data):
-                face_data = {
-                    'box': box.tolist(),
-                    'landmarks': {}
-                }
-                
-                if landmarks is not None:
-                    # YOLO face model has 5 landmarks in this order:
-                    # left-eye, right-eye, nose, left-mouth-corner, right-mouth-corner
-                    face_data['landmarks'] = {
-                        'left_eye': landmarks[0].tolist(),
-                        'right_eye': landmarks[1].tolist(),
-                        'nose': landmarks[2].tolist(),
-                        'mouth_left': landmarks[3].tolist(),
-                        'mouth_right': landmarks[4].tolist()
-                    }
-                
-                detected_faces.append(face_data)
-        
-        input_type = "image path" if isinstance(image_input, str) else "image frame"
-        # Suppress verbose logging for video frames
         if isinstance(image_input, str):
-            logger.info(f"Found {len(detected_faces)} face(s) in {input_type} using YOLOv8.")
-        
+            image = cv2.imread(image_input)
+            if image is None:
+                logger.error(f"Failed to read image from path: {image_input}")
+                return []
+        else:
+            image = np.copy(image_input)
+
+        if image.dtype != np.uint8:
+            image = np.clip(image * 255.0, 0, 255).astype(np.uint8)
+
+        results = yolo_model(image, conf=0.4, verbose=False, device='cuda' if __import__('torch').cuda.is_available() else 'cpu')
+        detected_faces = []
+
+        for result in results:
+            boxes = result.boxes.xyxy.cpu().numpy()
+            landmarks = result.keypoints.xy.cpu().numpy() if result.keypoints is not None else [None] * len(boxes)
+
+            for box, lm in zip(boxes, landmarks):
+                x1, y1, x2, y2 = map(int, box)
+                
+                # Expand box by 15% for better face capture
+                h, w = image.shape[:2]
+                bw, bh = x2 - x1, y2 - y1
+                margin = 0.15
+                x1 = max(0, int(x1 - bw * margin))
+                y1 = max(0, int(y1 - bh * margin))
+                x2 = min(w, int(x2 + bw * margin))
+                y2 = min(h, int(y2 + bh * margin))
+                
+                landmark_dict = {}
+                if lm is not None:
+                    landmark_dict = {
+                        "left_eye": lm[0].tolist(),
+                        "right_eye": lm[1].tolist(),
+                        "nose": lm[2].tolist(),
+                        "mouth_left": lm[3].tolist(),
+                        "mouth_right": lm[4].tolist(),
+                    }
+
+                # Align face using landmarks in ORIGINAL image coordinates
+                aligned_rgb = None
+                if landmark_dict:
+                    try:
+                        src = np.array([
+                            landmark_dict['left_eye'],
+                            landmark_dict['right_eye'],
+                            landmark_dict['nose'],
+                            landmark_dict['mouth_left'],
+                            landmark_dict['mouth_right']
+                        ], dtype=np.float32)
+                        
+                        tform = trans.SimilarityTransform()
+                        tform.estimate(src, ARCFACE_DST)
+                        M = tform.params[0:2, :]
+                        aligned_bgr = cv2.warpAffine(image, M, (112, 112), borderValue=0)
+                        aligned_rgb = cv2.cvtColor(aligned_bgr, cv2.COLOR_BGR2RGB)
+                    except Exception as e:
+                        logger.warning(f"Alignment failed, using resized crop: {e}")
+                
+                # Fallback: simple crop + resize
+                if aligned_rgb is None:
+                    crop = image[y1:y2, x1:x2]
+                    if crop.size > 0:
+                        resized = cv2.resize(crop, (112, 112))
+                        aligned_rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+                    else:
+                        continue
+
+                detected_faces.append({
+                    "box": [x1, y1, x2, y2],
+                    "aligned_face": aligned_rgb,
+                    "landmarks": landmark_dict
+                })
+
         return detected_faces
 
     except Exception as e:
-        logger.error(f"Could not detect faces with YOLOv8. Error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("YOLO face detection failed:")
         return []
-
-# # --- Example Usage (for testing the new detector directly) ---
-# if __name__ == '__main__':
-#     SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-#     test_image_path = os.path.join(SCRIPT_DIR, '..', 'test_images', 'test_face.jpg')
-    
-#     image = cv2.imread(test_image_path)
-#     if image is not None:
-#         faces_found = detect_faces(image)
-        
-#         for face in faces_found:
-#             box = face['box']
-#             x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
-#             cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
-#             # Draw landmarks if they exist
-#             if face['landmarks']:
-#                 for landmark_name, point in face['landmarks'].items():
-#                     lx, ly = int(point[0]), int(point[1])
-#                     cv2.circle(image, (lx, ly), 3, (0, 0, 255), -1)
-
-#         output_path = os.path.join(SCRIPT_DIR, '..', 'test_images', 'test_face_detected_yolo.jpg')
-#         cv2.imwrite(output_path, image)
-#         print(f"Detection complete. Result saved to: {output_path}")
-#     else:
-#         print(f"Could not read the test image at: {test_image_path}")

@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+
+# Django
+db.sqlite3
+*.log
+
+# Media files
+media/incoming/*
+media/results/*
+media/uploads/*
+media/enrollments/*.jpg
+media/enrollments/*.jpeg
+media/enrollments/*.png
+media/enrollments/*.webp
+media/media_files/*
+
+# Keep directory structure
+!media/incoming/.gitkeep
+!media/results/.gitkeep
+!media/uploads/.gitkeep
+!media/enrollments/.gitkeep
+!media/media_files/.gitkeep
+
+# ChromaDB
+chroma_data/
+chromadb_data/
+analysis_pipeline/production_db/
+analysis_pipeline/test_db/
+
+# Celery
+celerybeat-schedule
+
+# Environment
+.env
+*.env
+
+# IDE
+.vscode/
+.idea/
+
+# Temp files
+temp_*.jpg
+temp_*.mp4
+temp_*.wav
+temp_*.mp3

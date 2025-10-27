@@ -46,19 +46,6 @@ def process_video_task(self, video_path):
     task_id = self.request.id
     result_path = os.path.join(RESULTS_DIR, f"{task_id}.json")
     
-    # **KEY FIX: Check if result already exists**
-    if os.path.exists(result_path):
-        try:
-            with open(result_path, "r", encoding="utf-8") as fh:
-                existing_result = json.load(fh)
-            # If it's a valid completed result, return it
-            if existing_result.get("status") == "ok" or "video_path" in existing_result:
-                print(f"Task {task_id} already completed successfully, returning existing result")
-                return {"status": "ok", "result_path": result_path, "message": "Previously completed"}
-        except Exception as e:
-            print(f"Error reading existing result file: {e}, proceeding with fresh processing")
-            # If file is corrupt, continue with processing
-    
     try:
         # Run the pipeline with this task_id
         results = process_video(video_path, task_id=task_id)
