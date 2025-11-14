@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Face Detection - SENTINEL</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        .video-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+        #videoFeed {
+            width: 100%;
+            border-radius: 10px;
+            display: block;
+        }
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 12px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #e53e3e;
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background: #718096;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #4a5568;
+            transform: translateY(-2px);
+        }
+        .status {
+            text-align: center;
+            color: white;
+            font-size: 18px;
+            margin-top: 15px;
+        }
+        .detected-faces {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .detected-faces h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+        .face-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .face-item {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .face-item .name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+        .face-item .confidence {
+            font-size: 14px;
+            color: #718096;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 Live Face Detection</h1>
+            <p>Real-time face recognition from your camera</p>
+        </div>
+
+        <div class="video-container">
+            <img id="videoFeed" src="" alt="Video Feed">
+            <div class="controls">
+                <button class="btn btn-primary" onclick="startDetection()">Start Detection</button>
+                <button class="btn btn-danger" onclick="stopDetection()">Stop Detection</button>
+                <button class="btn btn-secondary" onclick="goHome()">Back to Home</button>
+            </div>
+            <div class="status" id="status">Click "Start Detection" to begin</div>
+        </div>
+
+        <div class="detected-faces">
+            <h2>Detected Faces</h2>
+            <div class="face-list" id="faceList">
+                <p style="color: #718096;">No faces detected yet...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isRunning = false;
+        let updateInterval;
+        let currentStreamUrl = null;
+
+        function startDetection() {
+            isRunning = true;
+            document.getElementById('status').textContent = '🟢 Detection Active';
+            
+            const img = document.getElementById('videoFeed');
+            currentStreamUrl = '/live-feed/?' + new Date().getTime();
+            img.src = currentStreamUrl;
+            
+            updateInterval = setInterval(updateFaceList, 500); // Update faces every 500ms
+        }
+
+        function stopDetection() {
+            isRunning = false;
+            clearInterval(updateInterval);
+            
+            // Stop the video stream by clearing the src
+            const img = document.getElementById('videoFeed');
+            img.src = '';
+            currentStreamUrl = null;
+            
+            document.getElementById('status').textContent = '🔴 Detection Stopped';
+            document.getElementById('faceList').innerHTML = '<p style="color: #718096;">Detection stopped</p>';
+        }
+
+        function updateFaceList() {
+            if (!isRunning) return;
+            
+            // Fetch detected faces info
+            fetch('/live-faces/')
+                .then(response => response.json())
+                .then(data => {
+                    displayFaceList(data.faces);
+                })
+                .catch(err => console.error('Error fetching faces:', err));
+        }
+
+        function displayFaceList(faces) {
+            const faceList = document.getElementById('faceList');
+            
+            if (!isRunning) {
+                faceList.innerHTML = '<p style="color: #718096;">Detection stopped</p>';
+                return;
+            }
+            
+            if (faces.length === 0) {
+                faceList.innerHTML = '<p style="color: #718096;">No faces detected...</p>';
+                return;
+            }
+
+            faceList.innerHTML = faces.map(face => `
+                <div class="face-item">
+                    <div class="name">${face.name}</div>
+                    <div class="confidence">Confidence: ${(face.confidence * 100).toFixed(1)}%</div>
+                </div>
+            `).join('');
+        }
+
+        function goHome() {
+            stopDetection();
+            window.location.href = '/';
+        }
+
+        // Stop detection when leaving page
+        window.addEventListener('beforeunload', stopDetection);
+    </script>
+</body>
+</html>

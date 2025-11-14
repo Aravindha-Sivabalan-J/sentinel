@@ -47,7 +47,7 @@
 
     <div class="transcript">
       <h3>Transcript</h3>
-      <pre id="transcript-text">Waiting...</pre>
+      <div id="transcript-text" style="white-space: pre-wrap;">Waiting...</div>
     </div>
   </div>
 
@@ -556,10 +556,13 @@
     async function renderResults(results) {
       renderFaces(results);
 
-      if (results.transcript_segments && Array.isArray(results.transcript_segments)) {
+      if (results.transcript_segments && Array.isArray(results.transcript_segments) && results.transcript_segments.length > 0) {
         renderTranscript(results.transcript_segments);
       } else {
-        document.getElementById("transcript-text").innerText = results.transcript || "";
+        const transcriptText = results.transcript || "";
+        const displayText = transcriptText.trim() ? transcriptText : "No transcript available";
+        document.getElementById("transcript-text").innerText = displayText;
+        console.log("Transcript:", transcriptText ? transcriptText.substring(0, 100) : "empty");
       }
 
       if (results.audio_only) {

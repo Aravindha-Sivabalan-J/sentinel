@@ -9,14 +9,20 @@ class MediaFile(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('processing', 'Processing'),
-        ('completed', 'Completed'),
+        ('processed', 'Processed'),
+        ('saved', 'Saved'),
         ('failed', 'Failed'),
+        ('stopped', 'Stopped'),
     ]
     file = models.FileField(upload_to='uploads/%Y/%m/%d/')
     filename = models.CharField(max_length=255, blank=True)
+    video_path = models.CharField(max_length=500, blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    task_id = models.CharField(max_length=255, blank=True, null=True)
+    annotated_video = models.FileField(upload_to='results/annotated/%Y/%m/%d/', blank=True, null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    progress = models.IntegerField(default=0)
 
     # This is a special Django method. When we save a MediaFile object,
     # this code will run automatically to extract the filename.
@@ -43,6 +49,8 @@ class DetectedPerson(models.Model):
     identity = models.CharField(max_length=255, blank=True, null=True, default='Unknown')
     confidence = models.FloatField(default=0.0)
     face_thumbnail = models.ImageField(upload_to='thumbnails/%Y/%m/%d/')
+    arcface_embedding = models.BinaryField(blank=True, null=True)
+    facenet_embedding = models.BinaryField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.identity} in {self.media_file.filename}"

@@ -8,28 +8,20 @@ __pycache__/
 db.sqlite3
 *.log
 
-# Media files
-media/incoming/*
-media/results/*
-media/uploads/*
-media/enrollments/*.jpg
-media/enrollments/*.jpeg
-media/enrollments/*.png
-media/enrollments/*.webp
-media/media_files/*
-
-# Keep directory structure
-!media/incoming/.gitkeep
-!media/results/.gitkeep
-!media/uploads/.gitkeep
-!media/enrollments/.gitkeep
-!media/media_files/.gitkeep
+# Media folder (large files)
+media/
 
 # ChromaDB
 chroma_data/
 chromadb_data/
 analysis_pipeline/production_db/
 analysis_pipeline/test_db/
+
+# Models folder (large files)
+analysis_pipeline/models/
+
+# Whisper.cpp (large files)
+whisper.cpp/
 
 # Celery
 celerybeat-schedule

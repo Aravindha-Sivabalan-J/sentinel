@@ -1,0 +1,20 @@
+CLASSIFIER TRAINING INSTRUCTIONS
+=================================
+
+1. Train the classifier:
+   cd /home/cannyminds/Desktop/SENTINEL/sentinel
+   python analysis_pipeline/train_classifier.py
+
+2. The script will:
+   - Load training_data.csv
+   - Train Logistic Regression with GridSearchCV
+   - Test thresholds from 0.0 to 1.0 (step 0.1)
+   - Find best threshold where FP=0 and FN=1
+   - Save model to: analysis_pipeline/models/face_match_classifier.pkl
+
+3. Restart Django and Celery to use the classifier
+
+4. The classifier is now integrated:
+   - Calculates 6 features: arc_score, facenet_score, avg, min, max, score_diff
+   - Both dual model agreement AND classifier prediction must be true for match
+   - If classifier not found, system uses only dual model matching

@@ -50,20 +50,20 @@
     <div id="youtube-loading" class="loading">Downloading...</div>
   </div>
 
-  <!-- Section 3: Upload Audio to Database -->
+  <!-- Section 3: Upload Media to Database -->
   <div class="section">
-    <h2>Upload Audio to Database</h2>
-    <div id="audio-message"></div>
-    <input type="file" id="audio-file" accept=".mp3,.wav,.flac,.m4a" />
-    <input type="text" id="audio-name" placeholder="Enter audio name" />
-    <button id="upload-audio-btn" onclick="uploadAudio()">Upload Audio to DB</button>
-    <div id="audio-loading" class="loading">Processing...</div>
+    <h2>Upload Media to Database</h2>
+    <div id="media-upload-message"></div>
+    <input type="file" id="media-file" accept=".mp3,.wav,.flac,.m4a,.mp4,.avi,.mov,.mkv,.webm" />
+    <input type="text" id="media-name" placeholder="Enter media name" />
+    <button id="upload-media-btn" onclick="uploadMediaToDB()">Upload & Process to DB</button>
+    <div id="media-upload-loading" class="loading">Uploading...</div>
   </div>
 
-  <!-- Section 4: Process from Database -->
+  <!-- Section 4: View Database -->
   <div class="section">
-    <h2>Process Media from Database</h2>
-    <button onclick="openModal()">Upload from DB</button>
+    <h2>View Database</h2>
+    <button onclick="window.location.href='/view-db/'">📁 VIEW ALL MEDIA</button>
   </div>
 
   <!-- Section 5: Enroll Person -->
@@ -72,28 +72,19 @@
     <button onclick="window.location.href='{% url 'core:enroll_person' %}'">Go to Enrollment</button>
   </div>
 
-  <!-- Modal for DB Media Selection -->
-  <div id="media-modal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Select Media from Database</h2>
-        <span class="close" onclick="closeModal()">&times;</span>
-      </div>
-      <div id="modal-message"></div>
-      <table id="media-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Date</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody id="media-list"></tbody>
-      </table>
-      <button onclick="closeModal()">Cancel</button>
-    </div>
+  <!-- Section 6: Search Across Media -->
+  <div class="section">
+    <h2>Search Person Across Media</h2>
+    <button onclick="window.location.href='{% url 'core:search_media' %}'">🔍 SEARCH MEDIA</button>
   </div>
+
+  <!-- Section 7: Live Detection -->
+  <div class="section">
+    <h2>Live Face Detection</h2>
+    <button onclick="window.location.href='{% url 'core:live_detection' %}'">GO TO LIVE</button>
+  </div>
+
+
 
   <script>
     function getCookie(name) {
@@ -153,12 +144,12 @@
       }
     }
 
-    async function uploadAudio() {
-      const fileInput = document.getElementById('audio-file');
-      const name = document.getElementById('audio-name').value;
-      const btn = document.getElementById('upload-audio-btn');
-      const loading = document.getElementById('audio-loading');
-      const msgDiv = document.getElementById('audio-message');
+    async function uploadMediaToDB() {
+      const fileInput = document.getElementById('media-file');
+      const name = document.getElementById('media-name').value;
+      const btn = document.getElementById('upload-media-btn');
+      const loading = document.getElementById('media-upload-loading');
+      const msgDiv = document.getElementById('media-upload-message');
 
       if (!fileInput.files[0] || !name) {
         msgDiv.innerHTML = '<p class="error">Please select a file and enter a name</p>';
@@ -170,11 +161,11 @@
       msgDiv.innerHTML = '';
 
       const formData = new FormData();
-      formData.append('audio_file', fileInput.files[0]);
-      formData.append('audio_name', name);
+      formData.append('media_file', fileInput.files[0]);
+      formData.append('media_name', name);
 
       try {
-        const response = await fetch('{% url "core:upload_audio" %}', {
+        const response = await fetch('{% url "core:upload_media_to_db" %}', {
           method: 'POST',
           headers: { 'X-CSRFToken': getCookie('csrftoken') },
           body: formData
@@ -184,7 +175,11 @@
         if (data.success) {
           msgDiv.innerHTML = `<p class="success">${data.message}</p>`;
           fileInput.value = '';
-          document.getElementById('audio-name').value = '';
+          document.getElementById('media-name').value = '';
+          
+          setTimeout(() => {
+            window.location.href = '/view-db/';
+          }, 2000);
         } else {
           msgDiv.innerHTML = `<p class="error">${data.error}</p>`;
         }
@@ -193,84 +188,6 @@
       } finally {
         btn.disabled = false;
         loading.style.display = 'none';
-      }
-    }
-
-    async function openModal() {
-      const modal = document.getElementById('media-modal');
-      const msgDiv = document.getElementById('modal-message');
-      const tbody = document.getElementById('media-list');
-
-      modal.style.display = 'block';
-      msgDiv.innerHTML = '<p>Loading...</p>';
-      tbody.innerHTML = '';
-
-      try {
-        const response = await fetch('{% url "core:get_db_media" %}');
-        const data = await response.json();
-
-        if (data.media && data.media.length > 0) {
-          msgDiv.innerHTML = '';
-          data.media.forEach(item => {
-            const row = tbody.insertRow();
-            row.innerHTML = `
-              <td>${item.name}</td>
-              <td>${item.type}</td>
-              <td>${item.date}</td>
-              <td><button onclick="selectMedia(${item.id}, '${item.type}', this)">Select</button></td>
-            `;
-          });
-        } else {
-          msgDiv.innerHTML = '<p>No media found in database</p>';
-        }
-      } catch (error) {
-        msgDiv.innerHTML = `<p class="error">Error loading media: ${error.message}</p>`;
-      }
-    }
-
-    function closeModal() {
-      document.getElementById('media-modal').style.display = 'none';
-    }
-
-    async function selectMedia(id, type, btn) {
-      const rows = document.querySelectorAll('#media-list tr');
-      rows.forEach(r => r.classList.remove('selected'));
-      btn.closest('tr').classList.add('selected');
-
-      btn.disabled = true;
-      btn.textContent = 'Processing...';
-
-      try {
-        const response = await fetch('{% url "core:process_db_media" %}', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRFToken': getCookie('csrftoken')
-          },
-          body: `media_id=${id}&media_type=${type}`
-        });
-
-        const data = await response.json();
-        if (data.success) {
-          if (data.task_id) {
-            closeModal();
-            window.location.href = `/results/${data.task_id}/`;
-          }
-        } else {
-          alert('Error: ' + data.error);
-        }
-      } catch (error) {
-        alert('Error: ' + error.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Select';
-      }
-    }
-
-    window.onclick = function(event) {
-      const modal = document.getElementById('media-modal');
-      if (event.target === modal) {
-        closeModal();
       }
     }
   </script>
