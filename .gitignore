@@ -1,0 +1,44 @@
+# Model files (too large for git)
+sentinel/analysis_pipeline/models/
+
+# Whisper C++ build files
+sentinel/analysis_pipeline/whisper-cpp/
+
+# Media files (user data)
+sentinel/media/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Environment variables
+.env
+.venv
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# ChromaDB
+sentinel/chroma_data/
+sentinel/analysis_pipeline/production_db/

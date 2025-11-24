@@ -136,6 +136,31 @@
             padding: 60px;
             font-size: 18px;
         }
+        .search-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        .search-input:focus {
+            border-color: #667eea;
+        }
+        .search-results-info {
+            color: white;
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -146,6 +171,12 @@
             <h1>📁 Database</h1>
             <p>All processed media files</p>
         </div>
+        
+        <div class="search-container">
+            <input type="text" id="searchInput" class="search-input" placeholder="🔍 Search by filename, person name, or transcript content..." />
+        </div>
+        
+        <div id="searchInfo" class="search-results-info" style="display: none;"></div>
 
         <div id="mediaGrid" class="media-grid"></div>
         <div id="noMedia" class="no-media" style="display: none;">
@@ -154,19 +185,38 @@
     </div>
 
     <script>
-        async function loadMedia() {
+        let searchTimeout;
+        
+        async function loadMedia(searchQuery = '') {
             try {
-                const response = await fetch('/api/get-all-media/');
+                const url = searchQuery ? `/api/search-media/?q=${encodeURIComponent(searchQuery)}` : '/api/get-all-media/';
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 const grid = document.getElementById('mediaGrid');
                 const noMedia = document.getElementById('noMedia');
+                const searchInfo = document.getElementById('searchInfo');
+                
+                if (searchQuery) {
+                    searchInfo.style.display = 'block';
+                    searchInfo.textContent = `Found ${data.media.length} result(s) for "${searchQuery}"`;
+                } else {
+                    searchInfo.style.display = 'none';
+                }
                 
                 if (!data.media || data.media.length === 0) {
-                    noMedia.style.display = 'block';
+                    if (searchQuery) {
+                        grid.innerHTML = '';
+                        noMedia.style.display = 'block';
+                        noMedia.innerHTML = `<p>No results found for "${searchQuery}"</p><p style="font-size: 14px; margin-top: 10px;">Try searching by filename, person name, or transcript content</p>`;
+                    } else {
+                        noMedia.style.display = 'block';
+                        noMedia.innerHTML = 'No media files in database yet';
+                    }
                     return;
                 }
                 
+                noMedia.style.display = 'none';
                 grid.innerHTML = data.media.map(item => `
                     <div class="media-card">
                         <h3>${item.filename}</h3>
@@ -279,11 +329,26 @@
             return cookieValue;
         }
         
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const query = e.target.value.trim();
+            
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                loadMedia(query);
+            }, 300); // Debounce search by 300ms
+        });
+        
         // Load media on page load
         loadMedia();
         
-        // Auto-refresh every 5 seconds if there are processing items
-        setInterval(loadMedia, 5000);
+        // Auto-refresh every 5 seconds if there are processing items (only when not searching)
+        setInterval(() => {
+            const searchQuery = document.getElementById('searchInput').value.trim();
+            if (!searchQuery) {
+                loadMedia();
+            }
+        }, 5000);
     </script>
 </body>
 </html>

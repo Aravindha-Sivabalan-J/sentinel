@@ -346,8 +346,25 @@ def upload_media_to_db(request):
                 
                 os.remove(temp_path)
                 
-                audio = AudioFile.objects.create(name=name, file_path=output_path)
-                return JsonResponse({"success": True, "message": f"Audio '{name}' uploaded successfully"})
+                # Create MediaFile record and process through pipeline
+                from core.tasks import process_audio_task
+                media_file_obj = MediaFile.objects.create(
+                    filename=name,
+                    video_path=output_path,
+                    status='pending'
+                )
+                
+                # Start processing
+                task = process_audio_task.delay(output_path, media_file_obj.id)
+                media_file_obj.task_id = task.id
+                media_file_obj.status = 'processing'
+                media_file_obj.save()
+                
+                return JsonResponse({
+                    "success": True, 
+                    "message": f"Audio '{name}' uploaded and processing started",
+                    "media_file_id": media_file_obj.id
+                })
             
             else:
                 return JsonResponse({"error": "Unsupported file format"}, status=400)
@@ -395,6 +412,47 @@ def get_all_media(request):
     
     media_list = []
     for mf in media_files:
+        media_list.append({
+            'id': mf.id,
+            'filename': mf.filename,
+            'status': mf.status,
+            'progress': mf.progress,
+            'uploaded_at': mf.uploaded_at.isoformat(),
+            'task_id': mf.task_id
+        })
+    
+    return JsonResponse({'media': media_list})
+
+
+def search_media_files(request):
+    """API endpoint to search media files by filename, person_id, or transcript content"""
+    from core.models import MediaFile, DetectedPerson, Transcript
+    from django.db.models import Q
+    
+    query = request.GET.get('q', '').strip()
+    if not query:
+        return JsonResponse({'media': []})
+    
+    # Search by filename
+    filename_matches = MediaFile.objects.filter(
+        filename__icontains=query
+    ).distinct()
+    
+    # Search by person_id
+    person_matches = MediaFile.objects.filter(
+        detected_persons__identity__icontains=query
+    ).distinct()
+    
+    # Search by transcript content
+    transcript_matches = MediaFile.objects.filter(
+        transcript__full_text__icontains=query
+    ).distinct()
+    
+    # Combine all matches
+    all_matches = (filename_matches | person_matches | transcript_matches).distinct().order_by('-uploaded_at')
+    
+    media_list = []
+    for mf in all_matches:
         media_list.append({
             'id': mf.id,
             'filename': mf.filename,
@@ -555,17 +613,24 @@ def view_media(request, media_file_id):
         except:
             pass
         
-        # Get annotated video path
+        # Get annotated video path or audio file path
         if media_file.annotated_video and media_file.annotated_video.name:
             video_path = settings.MEDIA_URL + media_file.annotated_video.name
         else:
             video_path = None
         
+        # Check if this is an audio file
+        is_audio = False
+        if media_file.video_path:
+            ext = os.path.splitext(media_file.video_path)[1].lower()
+            is_audio = ext in ['.mp3', '.wav', '.flac', '.m4a']
+        
         results = {
             'video_path': video_path,
             'persons': persons,
             'transcript': transcript,
-            'status': media_file.status
+            'status': media_file.status,
+            'is_audio': is_audio
         }
         
         return render(request, "results.html", {

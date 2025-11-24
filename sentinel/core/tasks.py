@@ -39,6 +39,113 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 #         raise
 
 @shared_task(bind=True, acks_late=True, reject_on_worker_lost=True)
+def process_audio_task(self, audio_path, media_file_id=None):
+    """
+    Process audio file and save transcript to database
+    """
+    from core.models import MediaFile, Transcript
+    from analysis_pipeline.transcriber import eat_video
+    
+    task_id = self.request.id
+    result_path = os.path.join(RESULTS_DIR, f"{task_id}.json")
+    
+    # Get MediaFile record
+    if media_file_id:
+        try:
+            media_file = MediaFile.objects.get(id=media_file_id)
+        except MediaFile.DoesNotExist:
+            media_file = None
+    else:
+        media_file = None
+    
+    if not media_file:
+        media_file = MediaFile.objects.create(
+            filename=os.path.basename(audio_path),
+            video_path=audio_path,
+            status='processing',
+            task_id=task_id
+        )
+        media_file_id = media_file.id
+    else:
+        media_file.refresh_from_db()
+        if media_file.status == 'stopped':
+            logger.info(f"Task {task_id} skipped - file was stopped")
+            return {"status": "stopped", "message": "Processing was stopped by user"}
+        
+        media_file.status = 'processing'
+        media_file.task_id = task_id
+        media_file.save()
+    
+    try:
+        logger.info(f"Starting audio processing: {audio_path}")
+        
+        # Update progress
+        media_file.progress = 20
+        media_file.save()
+        
+        # Transcribe audio
+        transcript_result = eat_video(audio_path)
+        transcript_text = transcript_result.get("text", "") if isinstance(transcript_result, dict) else str(transcript_result)
+        
+        media_file.progress = 80
+        media_file.save()
+        
+        # Save transcript
+        Transcript.objects.update_or_create(
+            media_file=media_file,
+            defaults={'full_text': transcript_text}
+        )
+        
+        # Update status
+        media_file.status = 'processed'
+        media_file.progress = 100
+        media_file.save()
+        
+        # Save audio file path to MediaFile
+        rel_audio_path = os.path.relpath(audio_path, MEDIA_ROOT)
+        media_file.annotated_video.name = rel_audio_path
+        media_file.save()
+        
+        # Save results to JSON
+        results = {
+            "status": "ok",
+            "transcript": transcript_text,
+            "persons": {},
+            "video_path": None,
+            "audio_path": rel_audio_path,
+            "audio_only": True
+        }
+        
+        with open(result_path, "w", encoding="utf-8") as fh:
+            json.dump(results, fh, ensure_ascii=False, indent=2)
+        
+        media_file.status = 'saved'
+        media_file.save()
+        
+        logger.info(f"✅ Audio processing complete: {task_id}")
+        return {"status": "ok", "result_path": result_path, "media_file_id": media_file_id}
+
+    except Exception as e:
+        logger.exception(f"Audio processing failed: {e}")
+        
+        if media_file:
+            media_file.refresh_from_db()
+            if media_file.status == 'stopped':
+                logger.info(f"Task {task_id} was stopped by user")
+                err_obj = {"status": "stopped", "error": "Processing stopped by user"}
+                with open(result_path, "w", encoding="utf-8") as fh:
+                    json.dump(err_obj, fh, ensure_ascii=False, indent=2)
+                return {"status": "stopped", "message": "Processing stopped by user"}
+            else:
+                media_file.status = 'failed'
+                media_file.save()
+        
+        err_obj = {"status": "error", "error": str(e)}
+        with open(result_path, "w", encoding="utf-8") as fh:
+            json.dump(err_obj, fh, ensure_ascii=False, indent=2)
+        raise
+
+@shared_task(bind=True, acks_late=True, reject_on_worker_lost=True)
 def process_video_task(self, video_path, media_file_id=None):
     """
     Persistent video processing task with database status tracking.

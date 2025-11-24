@@ -565,8 +565,23 @@
         console.log("Transcript:", transcriptText ? transcriptText.substring(0, 100) : "empty");
       }
 
-      if (results.audio_only) {
-        document.getElementById("video-container").innerHTML = '<div class="notice"><p>Audio transcription only (no video)</p></div>';
+      if (results.audio_only || results.is_audio) {
+        const audioPath = results.audio_path;
+        if (audioPath) {
+          const audioUrl = normalizeMediaUrl(mediaUrlTemplate, audioPath);
+          document.getElementById("video-container").innerHTML = `
+            <div class="notice">
+              <p>🎵 Audio File</p>
+              <audio controls style="width: 100%; margin-top: 10px;">
+                <source src="${audioUrl}" type="audio/wav">
+                Your browser does not support the audio element.
+              </audio>
+              <div class="small"><a href="${audioUrl}" target="_blank">Download audio file</a></div>
+            </div>
+          `;
+        } else {
+          document.getElementById("video-container").innerHTML = '<div class="notice"><p>🎵 Audio transcription only (no audio file available)</p></div>';
+        }
       } else {
         const ok = await attachVideoToDOM(results.video_path);
         if (ok) setupVideoHighlighting();

@@ -18,8 +18,8 @@ embedder = DualEmbedder()
 db = DualChromaDBManager()
 
 # Globals - IP Webcam configuration
-CAMERA_URL = 'http://192.168.1.25:8080'
-VIDEO_STREAM_URL = f'{CAMERA_URL}/shot.jpg?quality=60'  # Lower quality for speed
+CAMERA_URL = 'http://192.168.1.40:8080'
+VIDEO_STREAM_URL = f'{CAMERA_URL}/shot.jpg'
 camera = None
 detected_faces_info = []
 frame_lock = threading.Lock()
@@ -59,14 +59,14 @@ def generate_frames():
     stream_id = id(threading.current_thread())
     stream_active[stream_id] = True
     
-    frame_count = 0
-    
     try:
         while stream_active.get(stream_id, False):
             try:
                 # Fetch frame from IP Webcam
-                response = requests.get(VIDEO_STREAM_URL, timeout=1)
+                response = requests.get(VIDEO_STREAM_URL, timeout=10)
                 if response.status_code != 200:
+                    logger.error(f"Failed to get frame: {response.status_code}")
+                    time.sleep(0.1)
                     continue
                 
                 # Decode frame
@@ -74,18 +74,19 @@ def generate_frames():
                 frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
                 
                 if frame is None:
+                    logger.error("Failed to decode frame")
+                    time.sleep(0.1)
                     continue
                 
                 # Resize for faster processing
                 frame = cv2.resize(frame, (960, 540))
                 
-                # Run face detection every frame
+                # Run face detection
                 try:
                     faces = detect_faces(frame)
                     detected_faces_info = []
                     
                     for face in faces:
-                        # Detector returns 'box' not 'bbox'
                         if 'box' not in face or 'aligned_face' not in face:
                             continue
                         
@@ -114,17 +115,21 @@ def generate_frames():
                                 detected_faces_info.append({'name': label, 'confidence': confidence})
                 except Exception as e:
                     logger.debug(f"Face detection error: {e}")
-                    pass
                 
-                ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+                # Encode frame
+                ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                if ret:
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+                
+                time.sleep(0.033)  # ~30 FPS
             
-            except requests.exceptions.RequestException:
-                break
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Request error: {e}")
+                time.sleep(1)
             except Exception as e:
-                logger.debug(f"Frame error: {e}")
-                continue
+                logger.error(f"Frame error: {e}")
+                time.sleep(0.1)
     finally:
         stream_active.pop(stream_id, None)
 

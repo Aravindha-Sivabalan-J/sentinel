@@ -14,6 +14,7 @@ urlpatterns = [
     path("process-db-media/", views.process_db_media, name="process_db_media"),
     path("view-db/", views.view_db, name="view_db"),
     path("api/get-all-media/", views.get_all_media, name="get_all_media"),
+    path("api/search-media/", views.search_media_files, name="search_media_files"),
     path("search-media/", views.search_media_view, name="search_media"),
     path("view-media/<int:media_file_id>/", views.view_media, name="view_media"),
     path("stop-processing/<int:media_file_id>/", views.stop_processing, name="stop_processing"),

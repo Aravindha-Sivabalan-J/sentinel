@@ -69,16 +69,12 @@ def process_video_with_db(video_path, task_id, media_file):
     # Setup annotated video writer
     annotated_dir = os.path.join(MEDIA_ROOT, "results", "annotated", task_id)
     os.makedirs(annotated_dir, exist_ok=True)
+    temp_video_path = os.path.join(annotated_dir, f"temp_annotated_{os.path.basename(video_path)}")
     annotated_path = os.path.join(annotated_dir, f"annotated_{os.path.basename(video_path)}")
     
-    # Use H.264 codec for browser compatibility
-    fourcc = cv2.VideoWriter_fourcc(*'avc1')  # H.264
-    out = cv2.VideoWriter(annotated_path, fourcc, fps, (width, height))
-    
-    if not out.isOpened():
-        # Fallback to mp4v if H.264 not available
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(annotated_path, fourcc, fps, (width, height))
+    # Use mp4v codec for OpenCV writing (audio will be added later)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
     
     # Track persons and their appearances
     person_data = defaultdict(lambda: {
@@ -190,6 +186,24 @@ def process_video_with_db(video_path, task_id, media_file):
     finally:
         cap.release()
         out.release()
+        
+        # Merge video with original audio using ffmpeg
+        import subprocess
+        try:
+            cmd = [
+                'ffmpeg', '-i', temp_video_path, '-i', video_path,
+                '-c:v', 'libx264', '-c:a', 'aac',
+                '-map', '0:v:0', '-map', '1:a:0',
+                '-shortest', '-y', annotated_path
+            ]
+            subprocess.run(cmd, check=True, capture_output=True)
+            # Remove temp file
+            os.remove(temp_video_path)
+            logger.info(f"[{task_id}] Audio merged successfully")
+        except Exception as e:
+            logger.warning(f"[{task_id}] Audio merge failed: {e}, using video-only version")
+            # Fallback: rename temp file to final path
+            os.rename(temp_video_path, annotated_path)
     
     media_file.progress = 85
     media_file.save()
