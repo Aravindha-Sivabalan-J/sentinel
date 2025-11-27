@@ -3,7 +3,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Upload Media - CannyMinds</title>
+  <title>Audio to Text - CannyMinds</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     * {
@@ -75,7 +75,6 @@
       border-radius: 8px;
       transition: all 0.3s ease;
       font-size: 12px;
-      position: relative;
     }
 
     .menu-item a:hover {
@@ -220,10 +219,10 @@
 
     .loading {
       display: none;
-      margin: 10px 0;
+      margin: 8px 0;
       color: #3E7CB1;
       font-weight: 600;
-      font-size: 14px;
+      font-size: 11px;
     }
   </style>
 </head>
@@ -236,7 +235,7 @@
       <nav>
         <ul class="menu">
           <li class="menu-item">
-            <a href="{% url 'core:home' %}" class="active">
+            <a href="{% url 'core:home' %}">
               <i class="icon fa-solid fa-cloud-arrow-up"></i>
               <span>Upload Media</span>
             </a>
@@ -248,7 +247,7 @@
             </a>
           </li>
           <li class="menu-item">
-            <a href="{% url 'core:audio_to_text_page' %}">
+            <a href="{% url 'core:audio_to_text_page' %}" class="active">
               <i class="icon fa-solid fa-microphone"></i>
               <span>Audio to Text</span>
             </a>
@@ -283,23 +282,86 @@
 
     <main class="main-content">
       <div class="page-header">
-        <h2>Upload Media</h2>
-        <p>Upload image or video files to detect and analyze persons</p>
+        <h2>Audio to Text</h2>
+        <p>Upload audio or video files to database for transcription and storage</p>
       </div>
 
       <div class="actions-container">
         <div class="action-card">
-          <h3>Upload Image or Video</h3>
-          <p>Upload image or video files for AI-powered face detection and person analysis. The system will identify all persons in the media and show their details.</p>
-          {% if error %}<p class="error">{{ error }}</p>{% endif %}
-          <form method="post" enctype="multipart/form-data">
-            {% csrf_token %}
-            <input type="file" name="file" required accept="image/*,video/*" />
-            <button type="submit">Upload & Analyze</button>
-          </form>
+          <h3>Upload Media to Database</h3>
+          <p>Upload audio or video files to the database. The system will process and transcribe audio content, store media files, and make them searchable.</p>
+          <div id="media-upload-message"></div>
+          <input type="file" id="media-file" accept=".mp3,.wav,.flac,.m4a,.mp4,.avi,.mov,.mkv,.webm" />
+          <input type="text" id="media-name" placeholder="Enter a name for this media file" />
+          <button id="upload-media-btn" onclick="uploadMediaToDB()">Upload to Database</button>
+          <div id="media-upload-loading" class="loading">Uploading and processing...</div>
         </div>
       </div>
     </main>
   </div>
+
+  <script>
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    async function uploadMediaToDB() {
+      const fileInput = document.getElementById('media-file');
+      const name = document.getElementById('media-name').value;
+      const btn = document.getElementById('upload-media-btn');
+      const loading = document.getElementById('media-upload-loading');
+      const msgDiv = document.getElementById('media-upload-message');
+
+      if (!fileInput.files[0] || !name) {
+        msgDiv.innerHTML = '<p class="error">Please select a file and enter a name</p>';
+        return;
+      }
+
+      btn.disabled = true;
+      loading.style.display = 'block';
+      msgDiv.innerHTML = '';
+
+      const formData = new FormData();
+      formData.append('media_file', fileInput.files[0]);
+      formData.append('media_name', name);
+
+      try {
+        const response = await fetch('{% url "core:upload_media_to_db" %}', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+          body: formData
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          msgDiv.innerHTML = `<p class="success">${data.message}</p>`;
+          fileInput.value = '';
+          document.getElementById('media-name').value = '';
+
+          setTimeout(() => {
+            window.location.href = '{% url "core:view_db" %}';
+          }, 2000);
+        } else {
+          msgDiv.innerHTML = `<p class="error">${data.error}</p>`;
+        }
+      } catch (error) {
+        msgDiv.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+      } finally {
+        btn.disabled = false;
+        loading.style.display = 'none';
+      }
+    }
+  </script>
 </body>
 </html>

@@ -9,23 +9,39 @@ from skimage import transform as trans
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# --- Load YOLOv8 Face Model ---
+# --- Lazy Loading for YOLOv8 Face Model ---
 yolo_model = None
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+model_path = os.path.join(SCRIPT_DIR, "models", "yolov8n-face.pt")
 
-try:
-    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(SCRIPT_DIR, "models", "yolov8n-face.pt")
+def load_yolo_model():
+    """Load YOLO model on-demand"""
+    global yolo_model
+    if yolo_model is None:
+        try:
+            if not os.path.exists(model_path):
+                logger.error(f"FATAL: YOLOv8 model not found at {model_path}")
+                return None
+            yolo_model = YOLO(model_path)
+            logger.info(f"YOLOv8 face detection model loaded from {model_path}")
+        except Exception as e:
+            logger.exception("Failed to load YOLOv8 model:")
+            return None
+    return yolo_model
 
-    if not os.path.exists(model_path):
-        logger.error(f"FATAL: YOLOv8 model not found at {model_path}")
-        logger.error("Download 'yolov8n-face.pt' into 'analysis_pipeline/models/' directory.")
-    else:
-        yolo_model = YOLO(model_path)
-        logger.info(f"YOLOv8 face detection model loaded from {model_path}")
-
-except Exception as e:
-    logger.exception("Failed to load YOLOv8 model:")
-    yolo_model = None
+def unload_yolo_model():
+    """Clear YOLO model from GPU memory"""
+    global yolo_model
+    if yolo_model is not None:
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            del yolo_model
+            yolo_model = None
+            logger.info("YOLOv8 model unloaded from GPU")
+        except Exception as e:
+            logger.warning(f"Error unloading YOLO model: {e}")
 
 # ArcFace standard 5-point template
 ARCFACE_DST = np.array([
@@ -39,7 +55,8 @@ def detect_faces(image_input):
     Detect faces using YOLOv8n-face and align to ArcFace standard template.
     Returns list with aligned 112x112 RGB faces ready for embedding.
     """
-    if yolo_model is None:
+    model = load_yolo_model()
+    if model is None:
         logger.error("YOLOv8 model not loaded.")
         return []
 
@@ -55,7 +72,7 @@ def detect_faces(image_input):
         if image.dtype != np.uint8:
             image = np.clip(image * 255.0, 0, 255).astype(np.uint8)
 
-        results = yolo_model(image, conf=0.4, verbose=False, device='cuda' if __import__('torch').cuda.is_available() else 'cpu')
+        results = model(image, conf=0.4, verbose=False, device='cuda' if __import__('torch').cuda.is_available() else 'cpu')
         detected_faces = []
 
         for result in results:

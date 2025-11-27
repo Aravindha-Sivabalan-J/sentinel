@@ -93,82 +93,122 @@ logging.basicConfig(level=logging.INFO)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(SCRIPT_DIR, "models", "multitask_unity_medium.pt")
 TAMIL_MODEL_PATH = os.path.join(SCRIPT_DIR, "models", "tamil_models", "whisper-medium-ta_alldata_multigpu")
-DEVICE = "cpu"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Load Whisper small for language detection
+# Lazy loading variables
 whisper_small = None
-try:
-    whisper_small = whisper.load_model("small", device=DEVICE)
-    logger.info("✅ Loaded Whisper small for language detection")
-except Exception as e:
-    logger.exception(f"❌ Failed to load Whisper small: {e}")
-
-# Load Tamil model
 tamil_model = None
 tamil_processor = None
-try:
-    logger.info(f"Loading Tamil model from {TAMIL_MODEL_PATH}...")
-    from transformers import WhisperForConditionalGeneration, WhisperProcessor, AutoConfig
-    from transformers.modeling_utils import load_state_dict as original_load_state_dict
-    import warnings
-    warnings.filterwarnings('ignore')
-    
-    # Patch the load_state_dict function to bypass security check
-    def patched_load_state_dict(checkpoint_file, *args, **kwargs):
-        return torch.load(checkpoint_file, map_location='cpu', weights_only=False)
-    
-    import transformers.modeling_utils
-    transformers.modeling_utils.load_state_dict = patched_load_state_dict
-    
-    logger.info("Loading Tamil model config...")
-    config = AutoConfig.from_pretrained(TAMIL_MODEL_PATH, local_files_only=True)
-    logger.info("Loading Tamil model weights...")
-    tamil_model = WhisperForConditionalGeneration.from_pretrained(
-        TAMIL_MODEL_PATH,
-        config=config,
-        local_files_only=True
-    ).to(DEVICE)
-    logger.info("Loading Tamil processor...")
-    tamil_processor = WhisperProcessor.from_pretrained(TAMIL_MODEL_PATH, local_files_only=True)
-    tamil_model.eval()
-    
-    # Restore original function
-    transformers.modeling_utils.load_state_dict = original_load_state_dict
-    
-    logger.info("✅ Loaded Tamil IndicWhisper model successfully")
-except Exception as e:
-    logger.error(f"❌ Failed to load Tamil model: {e}")
-    import traceback
-    logger.error(traceback.format_exc())
-    tamil_model = None
-    tamil_processor = None
-
-# Load Seamless M4T
 seamless_model = None
 seamless_processor = None
-try:
-    logger.info("Loading Seamless M4T model...")
-    from transformers import SeamlessM4Tv2ForSpeechToText, AutoProcessor
-    logger.info("Loading base model architecture...")
-    seamless_model = SeamlessM4Tv2ForSpeechToText.from_pretrained(
-        "facebook/seamless-m4t-v2-large"
-    )
-    logger.info(f"Loading checkpoint from {MODEL_PATH}...")
-    checkpoint = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
-    if isinstance(checkpoint, dict):
-        if 'model' in checkpoint:
-            seamless_model.load_state_dict(checkpoint['model'], strict=False)
-        else:
-            seamless_model.load_state_dict(checkpoint, strict=False)
-    seamless_model = seamless_model.to(DEVICE)
-    seamless_model.eval()
-    logger.info("Loading processor...")
-    seamless_processor = AutoProcessor.from_pretrained("facebook/seamless-m4t-v2-large", use_fast=False)
-    logger.info("✅ Loaded Seamless-M4T model")
-except Exception as e:
-    logger.error(f"❌ Failed to load Seamless-M4T: {e}")
-    seamless_model = None
-    seamless_processor = None
+
+def load_whisper_small():
+    """Load Whisper small model on-demand"""
+    global whisper_small
+    if whisper_small is None:
+        try:
+            whisper_small = whisper.load_model("small", device=DEVICE)
+            logger.info("✅ Loaded Whisper small for language detection")
+        except Exception as e:
+            logger.exception(f"❌ Failed to load Whisper small: {e}")
+    return whisper_small
+
+def load_tamil_model():
+    """Load Tamil model on-demand"""
+    global tamil_model, tamil_processor
+    if tamil_model is None or tamil_processor is None:
+        try:
+            logger.info(f"Loading Tamil model from {TAMIL_MODEL_PATH}...")
+            from transformers import WhisperForConditionalGeneration, WhisperProcessor, AutoConfig
+            from transformers.modeling_utils import load_state_dict as original_load_state_dict
+            import warnings
+            warnings.filterwarnings('ignore')
+            
+            # Patch the load_state_dict function to bypass security check
+            def patched_load_state_dict(checkpoint_file, *args, **kwargs):
+                return torch.load(checkpoint_file, map_location='cpu', weights_only=False)
+            
+            import transformers.modeling_utils
+            transformers.modeling_utils.load_state_dict = patched_load_state_dict
+            
+            logger.info("Loading Tamil model config...")
+            config = AutoConfig.from_pretrained(TAMIL_MODEL_PATH, local_files_only=True)
+            logger.info("Loading Tamil model weights...")
+            tamil_model = WhisperForConditionalGeneration.from_pretrained(
+                TAMIL_MODEL_PATH,
+                config=config,
+                local_files_only=True
+            ).to(DEVICE)
+            logger.info("Loading Tamil processor...")
+            tamil_processor = WhisperProcessor.from_pretrained(TAMIL_MODEL_PATH, local_files_only=True)
+            tamil_model.eval()
+            
+            # Restore original function
+            transformers.modeling_utils.load_state_dict = original_load_state_dict
+            
+            logger.info("✅ Loaded Tamil IndicWhisper model successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to load Tamil model: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            tamil_model = None
+            tamil_processor = None
+    return tamil_model, tamil_processor
+
+def load_seamless_model():
+    """Load Seamless M4T model on-demand"""
+    global seamless_model, seamless_processor
+    if seamless_model is None or seamless_processor is None:
+        try:
+            logger.info("Loading Seamless M4T model...")
+            from transformers import SeamlessM4Tv2ForSpeechToText, AutoProcessor
+            logger.info("Loading base model architecture...")
+            seamless_model = SeamlessM4Tv2ForSpeechToText.from_pretrained(
+                "facebook/seamless-m4t-v2-large"
+            )
+            logger.info(f"Loading checkpoint from {MODEL_PATH}...")
+            checkpoint = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
+            if isinstance(checkpoint, dict):
+                if 'model' in checkpoint:
+                    seamless_model.load_state_dict(checkpoint['model'], strict=False)
+                else:
+                    seamless_model.load_state_dict(checkpoint, strict=False)
+            seamless_model = seamless_model.to(DEVICE)
+            seamless_model.eval()
+            logger.info("Loading processor...")
+            seamless_processor = AutoProcessor.from_pretrained("facebook/seamless-m4t-v2-large", use_fast=False)
+            logger.info("✅ Loaded Seamless-M4T model")
+        except Exception as e:
+            logger.error(f"❌ Failed to load Seamless-M4T: {e}")
+            seamless_model = None
+            seamless_processor = None
+    return seamless_model, seamless_processor
+
+def unload_audio_models():
+    """Clear all audio models from GPU memory"""
+    global whisper_small, tamil_model, tamil_processor, seamless_model, seamless_processor
+    try:
+        if whisper_small is not None:
+            del whisper_small
+            whisper_small = None
+        if tamil_model is not None:
+            del tamil_model
+            tamil_model = None
+        if tamil_processor is not None:
+            del tamil_processor
+            tamil_processor = None
+        if seamless_model is not None:
+            del seamless_model
+            seamless_model = None
+        if seamless_processor is not None:
+            del seamless_processor
+            seamless_processor = None
+        
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        logger.info("Audio models unloaded from GPU")
+    except Exception as e:
+        logger.warning(f"Error unloading audio models: {e}")
 
 def eat_video(video_path):
     temp_audio_path = os.path.abspath("temp_audio.wav")
@@ -185,74 +225,102 @@ def eat_video(video_path):
         
         # Detect language using Whisper small
         detected_lang = "en"
-        if whisper_small:
+        whisper_model = load_whisper_small()
+        if whisper_model:
             logger.info("Detecting language...")
             audio = whisper.load_audio(temp_audio_path)
             audio = whisper.pad_or_trim(audio)
             mel = whisper.log_mel_spectrogram(audio).to(DEVICE)
-            _, probs = whisper_small.detect_language(mel)
+            _, probs = whisper_model.detect_language(mel)
             detected_lang = max(probs, key=probs.get)
             logger.info(f"Detected language: {detected_lang}")
         
         # Transcribe based on detected language
-        if detected_lang == "ta" and tamil_model and tamil_processor:
-            logger.info("Using Tamil IndicWhisper model")
-            sample_rate, audio_data = wavfile.read(temp_audio_path)
-            if audio_data.dtype == np.int16:
-                audio_data = audio_data.astype(np.float32) / 32768.0
-            elif audio_data.dtype == np.int32:
-                audio_data = audio_data.astype(np.float32) / 2147483648.0
-            
-            # Process audio in chunks for long files
-            chunk_length = 30 * 16000  # 30 seconds chunks
-            transcriptions = []
-            
-            for i in range(0, len(audio_data), chunk_length):
-                chunk = audio_data[i:i + chunk_length]
-                with torch.no_grad():
-                    inputs = tamil_processor(chunk, sampling_rate=16000, return_tensors="pt").to(DEVICE)
-                    generated_ids = tamil_model.generate(
-                        inputs.input_features,
-                        max_length=448,
-                        num_beams=5
-                    )
-                    chunk_text = tamil_processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-                    transcriptions.append(chunk_text)
-                    logger.info(f"Processed chunk {i//chunk_length + 1}")
-            
-            transcription = " ".join(transcriptions)
-            logger.info("✅ Tamil transcription complete")
+        segments = []
+        if detected_lang == "ta":
+            tamil_m, tamil_p = load_tamil_model()
+            if tamil_m and tamil_p:
+                logger.info("Using Tamil IndicWhisper model")
+                sample_rate, audio_data = wavfile.read(temp_audio_path)
+                if audio_data.dtype == np.int16:
+                    audio_data = audio_data.astype(np.float32) / 32768.0
+                elif audio_data.dtype == np.int32:
+                    audio_data = audio_data.astype(np.float32) / 2147483648.0
+                
+                # Process audio in chunks for long files
+                chunk_length = 30 * 16000  # 30 seconds chunks
+                transcriptions = []
+                
+                for i in range(0, len(audio_data), chunk_length):
+                    chunk = audio_data[i:i + chunk_length]
+                    with torch.no_grad():
+                        inputs = tamil_p(chunk, sampling_rate=16000, return_tensors="pt").to(DEVICE)
+                        generated_ids = tamil_m.generate(
+                            inputs.input_features,
+                            max_length=448,
+                            num_beams=5
+                        )
+                        chunk_text = tamil_p.batch_decode(generated_ids, skip_special_tokens=True)[0]
+                        transcriptions.append(chunk_text)
+                        start_time = i / 16000
+                        end_time = min((i + chunk_length) / 16000, len(audio_data) / 16000)
+                        segments.append({"text": chunk_text, "start": start_time, "end": end_time})
+                        logger.info(f"Processed chunk {i//chunk_length + 1}")
+                
+                transcription = " ".join(transcriptions)
+                logger.info("✅ Tamil transcription complete")
+            else:
+                # Fallback to Whisper
+                whisper_model = load_whisper_small()
+                result = whisper_model.transcribe(temp_audio_path, language="en", task="transcribe", fp16=False, word_timestamps=True)
+                transcription = result["text"]
+                segments = [{"text": seg["text"], "start": seg["start"], "end": seg["end"]} for seg in result.get("segments", [])]
         
-        elif detected_lang != "en" and seamless_model and seamless_processor:
-            logger.info(f"✅ Using Seamless M4T for language: {detected_lang}")
-            sample_rate, audio_data = wavfile.read(temp_audio_path)
-            if audio_data.dtype == np.int16:
-                audio_data = audio_data.astype(np.float32) / 32768.0
-            elif audio_data.dtype == np.int32:
-                audio_data = audio_data.astype(np.float32) / 2147483648.0
-            
-            lang_map = {"hi": "hin", "te": "tel", "kn": "kan", "ml": "mal", "mr": "mar", "bn": "ben", "gu": "guj", "pa": "pan", "ur": "urd"}
-            tgt_lang = lang_map.get(detected_lang, "eng")
-            
-            with torch.no_grad():
-                inputs = seamless_processor(audio=audio_data, sampling_rate=16000, return_tensors="pt").to(DEVICE)
-                output_tokens = seamless_model.generate(
-                    **inputs,
-                    tgt_lang=tgt_lang,
-                    max_length=512,
-                    num_beams=5,
-                    no_repeat_ngram_size=3,
-                    repetition_penalty=1.2
-                )
-                transcription = seamless_processor.decode(output_tokens[0].tolist(), skip_special_tokens=True)
+        elif detected_lang != "en":
+            seamless_m, seamless_p = load_seamless_model()
+            if seamless_m and seamless_p:
+                logger.info(f"✅ Using Seamless M4T for language: {detected_lang}")
+                sample_rate, audio_data = wavfile.read(temp_audio_path)
+                if audio_data.dtype == np.int16:
+                    audio_data = audio_data.astype(np.float32) / 32768.0
+                elif audio_data.dtype == np.int32:
+                    audio_data = audio_data.astype(np.float32) / 2147483648.0
+                
+                lang_map = {"hi": "hin", "te": "tel", "kn": "kan", "ml": "mal", "mr": "mar", "bn": "ben", "gu": "guj", "pa": "pan", "ur": "urd"}
+                tgt_lang = lang_map.get(detected_lang, "eng")
+                
+                with torch.no_grad():
+                    inputs = seamless_p(audio=audio_data, sampling_rate=16000, return_tensors="pt").to(DEVICE)
+                    output_tokens = seamless_m.generate(
+                        **inputs,
+                        tgt_lang=tgt_lang,
+                        max_length=512,
+                        num_beams=5,
+                        no_repeat_ngram_size=3,
+                        repetition_penalty=1.2
+                    )
+                    transcription = seamless_p.decode(output_tokens[0].tolist(), skip_special_tokens=True)
+                    segments = [{"text": transcription, "start": 0, "end": len(audio_data) / 16000}]
+            else:
+                # Fallback to Whisper
+                whisper_model = load_whisper_small()
+                result = whisper_model.transcribe(temp_audio_path, language="en", task="transcribe", fp16=False, word_timestamps=True)
+                transcription = result["text"]
+                segments = [{"text": seg["text"], "start": seg["start"], "end": seg["end"]} for seg in result.get("segments", [])]
         else:
             logger.info("✅ Using Whisper small for English")
-            result = whisper_small.transcribe(temp_audio_path, language="en", task="transcribe", fp16=False)
+            whisper_model = load_whisper_small()
+            result = whisper_model.transcribe(temp_audio_path, language="en", task="transcribe", fp16=False, word_timestamps=True)
             transcription = result["text"]
+            segments = [{"text": seg["text"], "start": seg["start"], "end": seg["end"]} for seg in result.get("segments", [])]
             logger.info("✅ English transcription complete")
         
         logger.info(f"Transcription complete: {transcription[:100]}")
-        return {"text": transcription, "segments": []}
+        
+        # Unload audio models after transcription
+        unload_audio_models()
+        
+        return {"text": transcription, "segments": segments}
     except Exception as e:
         logger.exception(f"Transcription error: {e}")
         return {"text": "", "segments": []}

@@ -1,0 +1,467 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload Media - SENTINEL</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; }
+    .container { display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar { width: 220px; background: #25293C; color: white; position: fixed; height: 100vh; overflow-y: auto; z-index: 1000; box-shadow: 4px 0 15px rgba(0,0,0,0.1); }
+    .sidebar-header { padding: 15px 12px; text-align: center; }
+    .sidebar-header img { width: 60px; margin: 0 auto 6px; display: block; }
+    .sidebar-header p { font-size: 11px; font-weight: 600; letter-spacing: 1px; color: #cbd5e0; }
+    .menu { list-style: none; padding: 12px 10px; }
+    .menu-item { margin-bottom: 3px; }
+    .menu-item a { display: flex; align-items: center; padding: 8px 10px; color: #cbd5e0; text-decoration: none; border-radius: 8px; transition: all 0.3s ease; font-size: 12px; }
+    .menu-item a:hover { background: rgba(62, 124, 177, 0.15); color: white; transform: translateX(3px); }
+    .menu-item a.active { background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%); color: white; font-weight: 600; box-shadow: 0 4px 15px rgba(62, 124, 177, 0.4); }
+    .menu-item .icon { margin-right: 8px; font-size: 14px; width: 20px; text-align: center; }
+
+    /* Main Content */
+    .main-content { flex: 1; margin-left: 220px; padding: 15px 20px; min-height: 100vh; }
+    .content-wrapper { display: grid; grid-template-columns: 1fr 300px; gap: 15px; }
+    .page-header { margin-bottom: 15px; }
+    .page-header h2 { color: #1a202c; font-size: 20px; margin-bottom: 4px; font-weight: 700; }
+    .page-header p { color: #718096; font-size: 12px; }
+
+    @media (max-width: 1200px) {
+      .content-wrapper { grid-template-columns: 1fr; }
+      .recent-uploads { margin-top: 30px; }
+    }
+
+    /* Recent Uploads Sidebar */
+    .recent-uploads { background: white; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 15px; height: fit-content; position: sticky; top: 15px; }
+    .recent-uploads h3 { color: #1a202c; font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .recent-uploads h3 i { color: #3E7CB1; font-size: 14px; }
+    .recent-list { list-style: none; max-height: 500px; overflow-y: auto; }
+    .recent-item { padding: 10px; margin-bottom: 6px; background: #f8fafc; border-radius: 6px; border-left: 3px solid #e2e8f0; transition: all 0.2s ease; cursor: pointer; }
+    .recent-item:hover { background: #e0f2fe; border-left-color: #3E7CB1; transform: translateX(3px); }
+    .recent-item:last-child { margin-bottom: 0; }
+    .recent-item .name { font-size: 11px; font-weight: 600; color: #1a202c; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .recent-item .meta { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #64748b; }
+    .recent-item .status { padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 600; text-transform: uppercase; }
+    .recent-item .status.processing { background: #fef3c7; color: #92400e; }
+    .recent-item .status.processed { background: #d1fae5; color: #065f46; }
+    .recent-item .status.saved { background: #dbeafe; color: #1e40af; }
+    .recent-item .status.failed { background: #fee2e2; color: #991b1b; }
+    .recent-item .time { font-size: 9px; color: #94a3b8; }
+    .no-uploads { text-align: center; padding: 20px 15px; color: #94a3b8; font-size: 11px; }
+    .no-uploads i { font-size: 28px; margin-bottom: 8px; display: block; }
+    .refresh-btn { width: 100%; padding: 6px; margin-top: 10px; background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 11px; cursor: pointer; transition: all 0.2s ease; }
+    .refresh-btn:hover { background: #e2e8f0; color: #3E7CB1; border-color: #cbd5e0; }
+
+    /* Tabs */
+    .tab-nav { display: flex; gap: 6px; margin-bottom: 15px; background: white; padding: 6px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .tab-btn { flex: 1; padding: 10px 16px; background: transparent; color: #64748b; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .tab-btn:hover { background: rgba(62, 124, 177, 0.1); color: #3E7CB1; }
+    .tab-btn.active { background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%); color: white; box-shadow: 0 4px 12px rgba(62, 124, 177, 0.3); }
+    .tab-btn i { font-size: 14px; }
+
+    /* Tab Content */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.4s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Card */
+    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); max-width: 800px; margin: 0 auto; }
+    .card h3 { color: #1a202c; font-size: 16px; margin-bottom: 6px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .card h3 i { color: #3E7CB1; font-size: 18px; }
+    .card .description { color: #64748b; font-size: 11px; margin-bottom: 15px; line-height: 1.4; }
+
+    /* Form */
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #2d3748; font-size: 12px; }
+    input[type="text"], input[type="file"] { padding: 8px 12px; width: 100%; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 12px; transition: all 0.3s ease; font-family: inherit; }
+    input[type="text"]:focus, input[type="file"]:focus { outline: none; border-color: #3E7CB1; box-shadow: 0 0 0 3px rgba(62, 124, 177, 0.1); }
+
+    /* Drag & Drop */
+    .drop-zone { position: relative; background: #f8fafc; border: 2px dashed #cbd5e0; border-radius: 8px; padding: 20px; text-align: center; transition: all 0.3s ease; cursor: pointer; }
+    .drop-zone:hover { border-color: #3E7CB1; background: rgba(62, 124, 177, 0.05); }
+    .drop-zone.drag-over { border-color: #3E7CB1; background: rgba(62, 124, 177, 0.1); border-style: solid; }
+    .drop-zone i { font-size: 36px; color: #cbd5e0; margin-bottom: 10px; display: block; }
+    .drop-zone p { color: #64748b; font-size: 12px; margin-bottom: 5px; }
+    .drop-zone .file-types { color: #94a3b8; font-size: 10px; }
+    .drop-zone input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+    .file-selected { margin-top: 10px; padding: 8px 12px; background: #e0f2fe; border-radius: 6px; color: #0c4a6e; font-size: 11px; display: none; align-items: center; gap: 8px; }
+    .file-selected i { font-size: 14px; }
+    .file-selected.show { display: flex; }
+
+    button { padding: 10px 20px; margin-top: 8px; background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(62, 124, 177, 0.3); width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    button:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(62, 124, 177, 0.4); }
+    button:disabled { background: #cbd5e0; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* Messages */
+    .message { padding: 8px 12px; border-radius: 6px; margin: 10px 0; font-size: 11px; display: none; }
+    .message.show { display: block; }
+    .error { color: #c53030; background: #fed7d7; border-left: 3px solid #c53030; }
+    .success { color: #2f855a; background: #c6f6d5; border-left: 3px solid #2f855a; }
+    .loading { color: #3E7CB1; background: #e0f2fe; text-align: center; }
+    .loading i { animation: spin 1s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="{% static 'logo/logo2.png' %}" alt="SENTINEL Logo">
+      </div>
+      <nav>
+        <ul class="menu">
+          <li class="menu-item"><a href="{% url 'core:search_media' %}"><i class="icon fa-solid fa-magnifying-glass"></i><span>Search Media</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:home' %}" class="active"><i class="icon fa-solid fa-cloud-arrow-up"></i><span>Upload Media</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:analyze_image' %}"><i class="icon fa-solid fa-image"></i><span>Image Analyzer</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:enroll_person' %}"><i class="icon fa-solid fa-user-plus"></i><span>Enroll Person</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:live_detection' %}"><i class="icon fa-solid fa-video"></i><span>Live Detection</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:view_db' %}"><i class="icon fa-solid fa-database"></i><span>Media Library</span></a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Upload Media</h2>
+        <p>Upload audio/video files or download from YouTube</p>
+      </div>
+
+      <div class="content-wrapper">
+        <!-- Upload Section -->
+        <div class="upload-section">
+          <!-- Tabs -->
+          <div class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab('local', this)">
+              <i class="fa-solid fa-file-upload"></i>
+              <span>Upload Files</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('youtube', this)">
+              <i class="fa-solid fa-globe"></i>
+              <span>Online Video</span>
+            </button>
+          </div>
+
+          <!-- Tab 1: Upload Files -->
+          <div id="tab-local" class="tab-content active">
+            <div class="card">
+              <h3><i class="fa-solid fa-file-video"></i>Upload Audio or Video</h3>
+              <p class="description">Upload media files for AI-powered face detection and audio transcription. Supports: MP4, AVI, MOV, MKV, WEBM, MP3, WAV, FLAC, M4A</p>
+
+              <div id="local-message" class="message"></div>
+
+              <div class="form-group">
+                <label for="local-file">Select File</label>
+                <div class="drop-zone" id="drop-zone">
+                  <i class="fa-solid fa-cloud-upload-alt"></i>
+                  <p><strong>Click to browse</strong> or drag and drop your file here</p>
+                  <p class="file-types">Supports: MP4, AVI, MOV, MKV, WEBM, MP3, WAV, FLAC, M4A</p>
+                  <input type="file" id="local-file" accept=".mp3,.wav,.flac,.m4a,.mp4,.avi,.mov,.mkv,.webm" onchange="handleFileSelect(this)" />
+                </div>
+                <div id="file-selected" class="file-selected">
+                  <i class="fa-solid fa-file-check"></i>
+                  <span id="file-name"></span>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="local-name">File Name</label>
+                <input type="text" id="local-name" placeholder="Enter a name for this file" required />
+              </div>
+
+              <button id="local-btn" onclick="uploadFile()">
+                <i class="fa-solid fa-upload"></i>Upload & Process
+              </button>
+            </div>
+          </div>
+
+          <!-- Tab 2: Online Video -->
+          <div id="tab-youtube" class="tab-content">
+            <div class="card">
+              <h3><i class="fa-solid fa-globe"></i>Download Online Video</h3>
+              <p class="description">Download videos from online sources for analysis. The video will be processed automatically for face detection and transcription.</p>
+
+              <div id="youtube-message" class="message"></div>
+
+              <div class="form-group">
+                <label for="youtube-url">Video URL</label>
+                <input type="text" id="youtube-url" placeholder="https://www.youtube.com/watch?v=..." required />
+              </div>
+
+              <div class="form-group">
+                <label for="youtube-name">Video Name</label>
+                <input type="text" id="youtube-name" placeholder="Enter a name for this video" required />
+              </div>
+
+              <button id="youtube-btn" onclick="downloadYouTube()">
+                <i class="fa-solid fa-download"></i>Download & Process
+              </button>
+            </div>
+
+            <div class="card" style="margin-top: 15px; opacity: 0.6; pointer-events: none;">
+              <h3><i class="fa-brands fa-youtube"></i>Download All Videos from YouTube Channel</h3>
+              <p class="description">Download all videos from a YouTube channel for batch analysis. All videos will be processed automatically.</p>
+
+              <div class="form-group">
+                <label for="channel-url">YouTube Channel URL</label>
+                <input type="text" id="channel-url" placeholder="https://www.youtube.com/@channelname" disabled />
+              </div>
+
+              <button disabled>
+                <i class="fa-solid fa-download"></i>Download All Videos
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Uploads Sidebar -->
+        <aside class="recent-uploads">
+          <h3>
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            Recent Uploads
+          </h3>
+          <ul class="recent-list" id="recent-list">
+            <div class="no-uploads">
+              <i class="fa-solid fa-inbox"></i>
+              <p>No recent uploads</p>
+            </div>
+          </ul>
+          <button class="refresh-btn" onclick="loadRecentUploads()">
+            <i class="fa-solid fa-rotate"></i> Refresh
+          </button>
+        </aside>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    function switchTab(tab, btn) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    // Handle file selection
+    function handleFileSelect(input) {
+      const fileName = input.files[0]?.name || '';
+      const fileNameDisplay = document.getElementById('file-name');
+      const fileSelected = document.getElementById('file-selected');
+
+      if (fileName) {
+        fileNameDisplay.textContent = fileName;
+        fileSelected.classList.add('show');
+      } else {
+        fileSelected.classList.remove('show');
+      }
+    }
+
+    // Drag and drop handlers
+    const dropZone = document.getElementById('drop-zone');
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+
+      const input = document.getElementById('local-file');
+      input.files = e.dataTransfer.files;
+      handleFileSelect(input);
+    });
+
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    async function uploadFile() {
+      const fileInput = document.getElementById('local-file');
+      const name = document.getElementById('local-name').value.trim();
+      const btn = document.getElementById('local-btn');
+      const msg = document.getElementById('local-message');
+
+      if (!fileInput.files[0] || !name) {
+        msg.className = 'message error show';
+        msg.textContent = 'Please select a file and enter a name';
+        return;
+      }
+
+      btn.disabled = true;
+      msg.className = 'message loading show';
+      msg.innerHTML = '<i class="fa-solid fa-spinner"></i> Uploading...';
+
+      const formData = new FormData();
+      formData.append('media_file', fileInput.files[0]);
+      formData.append('media_name', name);
+
+      try {
+        const response = await fetch('{% url "core:upload_media_to_db" %}', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+          body: formData
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          msg.className = 'message success show';
+          msg.textContent = data.message;
+          fileInput.value = '';
+          document.getElementById('local-name').value = '';
+          document.getElementById('file-selected').classList.remove('show');
+          loadRecentUploads(); // Refresh recent uploads
+          setTimeout(() => window.location.href = '{% url "core:view_db" %}', 2000);
+        } else {
+          msg.className = 'message error show';
+          msg.textContent = data.error;
+        }
+      } catch (error) {
+        msg.className = 'message error show';
+        msg.textContent = 'Upload failed: ' + error.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function downloadYouTube() {
+      const url = document.getElementById('youtube-url').value.trim();
+      const name = document.getElementById('youtube-name').value.trim();
+      const btn = document.getElementById('youtube-btn');
+      const msg = document.getElementById('youtube-message');
+
+      if (!url || !name) {
+        msg.className = 'message error show';
+        msg.textContent = 'Please enter URL and name';
+        return;
+      }
+
+      btn.disabled = true;
+      msg.className = 'message loading show';
+      msg.innerHTML = '<i class="fa-solid fa-spinner"></i> Downloading...';
+
+      try {
+        const response = await fetch('{% url "core:download_youtube" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: `youtube_url=${encodeURIComponent(url)}&video_name=${encodeURIComponent(name)}`
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          msg.className = 'message success show';
+          msg.textContent = data.message;
+          document.getElementById('youtube-url').value = '';
+          document.getElementById('youtube-name').value = '';
+          loadRecentUploads(); // Refresh recent uploads
+          setTimeout(() => window.location.href = '{% url "core:view_db" %}', 2000);
+        } else {
+          msg.className = 'message error show';
+          msg.textContent = data.error;
+        }
+      } catch (error) {
+        msg.className = 'message error show';
+        msg.textContent = 'Download failed: ' + error.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // Load recent uploads
+    async function loadRecentUploads() {
+      const recentList = document.getElementById('recent-list');
+
+      try {
+        const response = await fetch('{% url "core:get_all_media" %}');
+        const data = await response.json();
+
+        if (data.media && data.media.length > 0) {
+          // Sort by upload time and take last 10
+          const recentMedia = data.media
+            .sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at))
+            .slice(0, 10);
+
+          recentList.innerHTML = recentMedia.map(item => {
+            const uploadDate = new Date(item.uploaded_at);
+            const timeAgo = getTimeAgo(uploadDate);
+            const fileType = item.file_type || 'unknown';
+            const fileIcon = fileType === 'audio' ? 'fa-file-audio' : 'fa-file-video';
+
+            return `
+              <li class="recent-item" onclick="viewMedia(${item.id})">
+                <div class="name">
+                  <i class="fa-solid ${fileIcon}" style="margin-right: 6px; color: #64748b;"></i>
+                  ${item.filename}
+                </div>
+                <div class="meta">
+                  <span class="status ${item.status}">${item.status}</span>
+                  <span class="time">${timeAgo}</span>
+                </div>
+              </li>
+            `;
+          }).join('');
+        } else {
+          recentList.innerHTML = `
+            <div class="no-uploads">
+              <i class="fa-solid fa-inbox"></i>
+              <p>No recent uploads</p>
+            </div>
+          `;
+        }
+      } catch (error) {
+        console.error('Failed to load recent uploads:', error);
+        recentList.innerHTML = `
+          <div class="no-uploads">
+            <i class="fa-solid fa-exclamation-circle"></i>
+            <p>Failed to load uploads</p>
+          </div>
+        `;
+      }
+    }
+
+    // Convert timestamp to "time ago" format
+    function getTimeAgo(date) {
+      const seconds = Math.floor((new Date() - date) / 1000);
+
+      if (seconds < 60) return 'just now';
+      if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+      if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+      return date.toLocaleDateString();
+    }
+
+    // View media details
+    function viewMedia(taskId) {
+      window.location.href = `/results/${taskId}/`;
+    }
+
+    // Load recent uploads on page load
+    document.addEventListener('DOMContentLoaded', loadRecentUploads);
+  </script>
+</body>
+</html>

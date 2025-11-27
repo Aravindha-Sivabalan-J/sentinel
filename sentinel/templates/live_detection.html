@@ -1,9 +1,11 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Face Detection - SENTINEL</title>
+    <title>Live Detection - CannyMinds</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
             margin: 0;
@@ -12,52 +14,129 @@
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+            background: #f5f7fa;
+            overflow: hidden;
         }
         .container {
-            max-width: 1400px;
-            margin: 0 auto;
+            display: flex;
+            height: 100vh;
         }
-        .header {
-            text-align: center;
+        .sidebar {
+            width: 220px;
+            background: #25293C;
             color: white;
-            margin-bottom: 30px;
+            padding: 0;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
         }
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
+
+        .sidebar-header {
+            padding: 15px 12px;
+            text-align: center;
+        }
+        .sidebar-header img {
+            width: 60px;
+            max-width: 100%;
+            height: auto;
+            margin: 0 auto 6px;
+            display: block;
+        }
+        .sidebar-header p {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: #cbd5e0;
+        }
+        .menu {
+            list-style: none;
+            padding: 12px 10px;
+        }
+        .menu-item {
+            margin-bottom: 3px;
+        }
+        .menu-item a {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            color: #cbd5e0;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 12px;
+        }
+        .menu-item a:hover {
+            background: rgba(62, 124, 177, 0.15);
+            color: white;
+            transform: translateX(3px);
+        }
+        .menu-item a.active {
+            background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%);
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(62, 124, 177, 0.4);
+        }
+        .menu-item .icon {
+            margin-right: 8px;
+            font-size: 14px;
+            width: 20px;
+            text-align: center;
+      display: inline-block;
+        }
+        .main-content {
+            flex: 1;
+            margin-left: 220px;
+            padding: 15px 20px;
+            background: #f5f7fa;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .page-header {
+            margin-bottom: 15px;
+        }
+        .page-header h2 {
+            color: #1a202c;
+            font-size: 20px;
+            margin-bottom: 4px;
+            font-weight: 700;
+        }
+        .page-header p {
+            color: #718096;
+            font-size: 12px;
         }
         .video-container {
             background: white;
-            border-radius: 15px;
-            padding: 20px;
+            border-radius: 10px;
+            padding: 15px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         #videoFeed {
             width: 100%;
-            border-radius: 10px;
+            border-radius: 8px;
             display: block;
+            background: #000;
+            min-height: 480px;
         }
         .controls {
             display: flex;
-            gap: 15px;
+            gap: 10px;
             justify-content: center;
-            margin-top: 20px;
+            margin-top: 12px;
         }
         .btn {
-            padding: 12px 30px;
-            font-size: 16px;
+            padding: 8px 20px;
+            font-size: 13px;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
             transition: all 0.3s;
         }
         .btn-primary {
-            background: #667eea;
+            background: #3E7CB1;
             color: white;
         }
         .btn-primary:hover {
@@ -82,71 +161,96 @@
         }
         .status {
             text-align: center;
+      display: inline-block;
             color: white;
-            font-size: 18px;
-            margin-top: 15px;
+            font-size: 14px;
+            margin-top: 10px;
         }
         .detected-faces {
             background: white;
-            border-radius: 15px;
-            padding: 20px;
+            border-radius: 10px;
+            padding: 15px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.3);
         }
         .detected-faces h2 {
-            color: #667eea;
-            margin-bottom: 15px;
+            color: #3E7CB1;
+            margin-bottom: 10px;
+            font-size: 16px;
         }
         .face-list {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 10px;
         }
         .face-item {
             background: #f7fafc;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 3px solid #3E7CB1;
         }
         .face-item .name {
             font-weight: 600;
             color: #2d3748;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
+            font-size: 12px;
         }
         .face-item .confidence {
-            font-size: 14px;
+            font-size: 11px;
             color: #718096;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🎥 Live Face Detection</h1>
-            <p>Real-time face recognition from your camera</p>
-        </div>
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="{% static 'logo/logo2.png' %}" alt="CannyMinds Logo">
+                    </div>
+            <nav>
+                <ul class="menu">
+                    <li class="menu-item"><a href="{% url 'core:search_media' %}"><i class="icon fa-solid fa-magnifying-glass"></i><span>Search Media</span></a></li>
+                    <li class="menu-item"><a href="{% url 'core:home' %}"><i class="icon fa-solid fa-cloud-arrow-up"></i><span>Upload Media</span></a></li>
+                    <li class="menu-item"><a href="{% url 'core:analyze_image' %}"><i class="icon fa-solid fa-image"></i><span>Image Analyzer</span></a></li>
+                    <li class="menu-item"><a href="{% url 'core:enroll_person' %}"><i class="icon fa-solid fa-user-plus"></i><span>Enroll Person</span></a></li>
+                    <li class="menu-item"><a href="{% url 'core:live_detection' %}" class="active"><i class="icon fa-solid fa-video"></i><span>Live Detection</span></a></li>
+                    <li class="menu-item"><a href="{% url 'core:view_db' %}"><i class="icon fa-solid fa-database"></i><span>Media Library</span></a></li>
+                </ul>
+            </nav>
+        </aside>
 
-        <div class="video-container">
-            <img id="videoFeed" src="" alt="Video Feed">
-            <div class="controls">
-                <button class="btn btn-primary" onclick="startDetection()">Start Detection</button>
-                <button class="btn btn-danger" onclick="stopDetection()">Stop Detection</button>
-                <button class="btn btn-secondary" onclick="goHome()">Back to Home</button>
+        <main class="main-content">
+            <div class="page-header">
+                <h2>Live Face Detection</h2>
+                <p>Real-time face recognition from your camera</p>
             </div>
-            <div class="status" id="status">Click "Start Detection" to begin</div>
-        </div>
 
-        <div class="detected-faces">
-            <h2>Detected Faces</h2>
-            <div class="face-list" id="faceList">
-                <p style="color: #718096;">No faces detected yet...</p>
+            <div class="video-container">
+                <img id="videoFeed" src="" alt="Video Feed">
+                <div class="controls">
+                    <button class="btn btn-secondary" onclick="connectSource()">Connect to Source</button>
+                    <button class="btn btn-primary" onclick="startDetection()">Start Detection</button>
+                    <button class="btn btn-danger" onclick="stopDetection()">Stop Detection</button>
+                </div>
+                <div class="status" id="status">Click "Start Detection" to begin</div>
             </div>
-        </div>
+
+            <div class="detected-faces">
+                <h2>Detected Faces</h2>
+                <div class="face-list" id="faceList">
+                    <p style="color: #718096;">No faces detected yet...</p>
+                </div>
+            </div>
+        </main>
     </div>
 
     <script>
         let isRunning = false;
         let updateInterval;
         let currentStreamUrl = null;
+
+        function connectSource() {
+            document.getElementById('status').textContent = '⚠️ Connect to Source - Feature coming soon!';
+        }
 
         function startDetection() {
             isRunning = true;

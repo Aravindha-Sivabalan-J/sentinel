@@ -1,0 +1,874 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload Media - SENTINEL</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f7fa;
+      overflow-x: hidden;
+    }
+
+    .container {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 260px;
+      background: #25293C;
+      color: white;
+      padding: 0;
+      box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 1000;
+    }
+
+
+
+
+    .sidebar-header {
+      padding: 25px 20px;
+      text-align: center;
+    }
+
+    .sidebar-header img {
+      width: 90px;
+      max-width: 100%;
+      height: auto;
+      margin: 0 auto 10px;
+      display: block;
+    }
+
+    .sidebar-header p {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      color: #cbd5e0;
+    }
+
+    .menu {
+      list-style: none;
+      padding: 20px 15px;
+    }
+
+    .menu-item {
+      margin-bottom: 5px;
+    }
+
+    .menu-item a {
+      display: flex;
+      align-items: center;
+      padding: 12px 15px;
+      color: #cbd5e0;
+      text-decoration: none;
+      border-radius: 10px;
+      transition: all 0.3s ease;
+      font-size: 14px;
+    }
+
+    .menu-item a:hover {
+      background: rgba(62, 124, 177, 0.15);
+      color: white;
+      transform: translateX(3px);
+    }
+
+    .menu-item a.active {
+      background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%);
+      color: white;
+      font-weight: 600;
+      box-shadow: 0 4px 15px rgba(62, 124, 177, 0.4);
+    }
+
+    .menu-item .icon {
+      margin-right: 12px;
+      font-size: 18px;
+      width: 24px;
+      text-align: center;
+      display: inline-block;
+    }
+
+    .main-content {
+      flex: 1;
+      margin-left: 260px;
+      padding: 25px 35px;
+      background: #f5f7fa;
+      min-height: 100vh;
+      overflow-y: auto;
+    }
+
+    .page-header {
+      margin-bottom: 30px;
+    }
+
+    .page-header h2 {
+      color: #1a202c;
+      font-size: 32px;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    .page-header p {
+      color: #718096;
+      font-size: 15px;
+    }
+
+    /* Tab Navigation */
+    .tab-navigation {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 25px;
+      background: white;
+      padding: 10px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 14px 24px;
+      background: transparent;
+      color: #64748b;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .tab-btn i {
+      font-size: 18px;
+    }
+
+    .tab-btn:hover {
+      background: rgba(62, 124, 177, 0.1);
+      color: #3E7CB1;
+    }
+
+    .tab-btn.active {
+      background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%);
+      color: white;
+      border-color: #3E7CB1;
+      box-shadow: 0 4px 12px rgba(62, 124, 177, 0.3);
+    }
+
+    /* Tab Content */
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.4s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .upload-card {
+      background: white;
+      padding: 35px;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .upload-card h3 {
+      color: #1a202c;
+      font-size: 22px;
+      margin-bottom: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .upload-card h3 i {
+      color: #3E7CB1;
+    }
+
+    .upload-card .description {
+      color: #64748b;
+      font-size: 14px;
+      margin-bottom: 25px;
+      line-height: 1.6;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #2d3748;
+      font-size: 14px;
+    }
+
+    input[type="text"], input[type="file"] {
+      padding: 14px 16px;
+      width: 100%;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      font-family: inherit;
+    }
+
+    input[type="text"]:focus, input[type="file"]:focus {
+      outline: none;
+      border-color: #3E7CB1;
+      box-shadow: 0 0 0 3px rgba(62, 124, 177, 0.1);
+    }
+
+    input[type="file"] {
+      cursor: pointer;
+      padding: 12px;
+    }
+
+    .file-input-wrapper {
+      position: relative;
+      background: #f8fafc;
+      border: 2px dashed #cbd5e0;
+      border-radius: 12px;
+      padding: 30px;
+      text-align: center;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .file-input-wrapper:hover {
+      border-color: #3E7CB1;
+      background: rgba(62, 124, 177, 0.05);
+    }
+
+    .file-input-wrapper.drag-over {
+      border-color: #3E7CB1;
+      background: rgba(62, 124, 177, 0.1);
+    }
+
+    .file-input-wrapper i {
+      font-size: 48px;
+      color: #cbd5e0;
+      margin-bottom: 15px;
+    }
+
+    .file-input-wrapper p {
+      color: #64748b;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .file-input-wrapper .file-types {
+      color: #94a3b8;
+      font-size: 12px;
+    }
+
+    .file-input-wrapper input[type="file"] {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .file-selected {
+      margin-top: 15px;
+      padding: 12px 16px;
+      background: #e0f2fe;
+      border-radius: 8px;
+      color: #0c4a6e;
+      font-size: 14px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .file-selected i {
+      font-size: 16px;
+    }
+
+    .file-selected.show {
+      display: flex;
+    }
+
+    button {
+      padding: 14px 28px;
+      margin: 8px 8px 8px 0;
+      background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(62, 124, 177, 0.3);
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(62, 124, 177, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      background: #cbd5e0;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .error {
+      color: #c53030;
+      background: #fed7d7;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin: 15px 0;
+      border-left: 4px solid #c53030;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .success {
+      color: #2f855a;
+      background: #c6f6d5;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin: 15px 0;
+      border-left: 4px solid #2f855a;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .loading {
+      display: none;
+      margin: 15px 0;
+      color: #3E7CB1;
+      font-weight: 600;
+      font-size: 14px;
+      text-align: center;
+      padding: 12px;
+      background: #e0f2fe;
+      border-radius: 8px;
+    }
+
+    .loading.show {
+      display: block;
+    }
+
+    .loading i {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .info-box {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .info-box h4 {
+      color: #1e40af;
+      font-size: 14px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .info-box ul {
+      color: #1e3a8a;
+      font-size: 13px;
+      line-height: 1.8;
+      padding-left: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        width: 70px;
+      }
+
+      .sidebar-header p,
+      .menu-item a span:not(.icon) {
+        display: none;
+      }
+
+      .menu-item a {
+        justify-content: center;
+      }
+
+      .menu-item .icon {
+        margin-right: 0;
+      }
+
+      .main-content {
+        margin-left: 70px;
+        padding: 20px;
+      }
+
+      .tab-btn span {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="{% static 'logo/logo2.png' %}" alt="Cannyminds Logo">
+      </div>
+      <nav>
+        <ul class="menu">
+          <li class="menu-item">
+            <a href="{% url 'core:home' %}" class="active">
+              <i class="icon fa-solid fa-cloud-arrow-up"></i>
+              <span>Upload Media</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:enroll_person' %}">
+              <i class="icon fa-solid fa-user-plus"></i>
+              <span>Enroll Person</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:search_media' %}">
+              <i class="icon fa-solid fa-magnifying-glass"></i>
+              <span>Search Media</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:live_detection' %}">
+              <i class="icon fa-solid fa-video"></i>
+              <span>Live Detection</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:view_db' %}">
+              <i class="icon fa-solid fa-database"></i>
+              <span>Media Library</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Upload Media</h2>
+        <p>Upload videos, audio files, or download from YouTube for AI-powered analysis</p>
+      </div>
+
+      <!-- Tab Navigation -->
+      <div class="tab-navigation">
+        <button class="tab-btn active" onclick="switchTab('local')">
+          <i class="fa-solid fa-file-upload"></i>
+          <span>Local Files</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('youtube')">
+          <i class="fa-brands fa-youtube"></i>
+          <span>YouTube</span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('image')">
+          <i class="fa-solid fa-image"></i>
+          <span>Quick Image</span>
+        </button>
+      </div>
+
+      <!-- Tab 1: Local Files (Audio + Video) -->
+      <div id="tab-local" class="tab-content active">
+        <div class="upload-card">
+          <h3>
+            <i class="fa-solid fa-file-video"></i>
+            Upload Audio or Video Files
+          </h3>
+          <p class="description">
+            Upload your media files to the database for AI-powered face detection, recognition, and audio transcription.
+            Supports multiple languages including English, Tamil, Hindi, and other Indian languages.
+          </p>
+
+          <div class="info-box">
+            <h4><i class="fa-solid fa-circle-info"></i> Supported Formats</h4>
+            <ul>
+              <li><strong>Video:</strong> MP4, AVI, MOV, MKV, WEBM</li>
+              <li><strong>Audio:</strong> MP3, WAV, FLAC, M4A</li>
+            </ul>
+          </div>
+
+          <div id="local-message"></div>
+
+          <div class="form-group">
+            <label for="local-file">Select Media File</label>
+            <div class="file-input-wrapper" id="local-file-wrapper">
+              <i class="fa-solid fa-cloud-upload-alt"></i>
+              <p><strong>Click to browse</strong> or drag and drop your file here</p>
+              <p class="file-types">Accepts: Video (MP4, AVI, MOV, MKV, WEBM) and Audio (MP3, WAV, FLAC, M4A)</p>
+              <input
+                type="file"
+                id="local-file"
+                accept=".mp3,.wav,.flac,.m4a,.mp4,.avi,.mov,.mkv,.webm"
+                onchange="handleFileSelect(this, 'local')"
+              />
+            </div>
+            <div id="local-file-selected" class="file-selected">
+              <i class="fa-solid fa-file-check"></i>
+              <span id="local-file-name"></span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="local-name">Media Name</label>
+            <input
+              type="text"
+              id="local-name"
+              placeholder="Enter a descriptive name for this file"
+              required
+            />
+          </div>
+
+          <button id="local-upload-btn" onclick="uploadLocalFile()">
+            <i class="fa-solid fa-upload"></i>
+            Upload & Process
+          </button>
+          <div id="local-loading" class="loading">
+            <i class="fa-solid fa-spinner"></i>
+            Uploading and processing...
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: YouTube -->
+      <div id="tab-youtube" class="tab-content">
+        <div class="upload-card">
+          <h3>
+            <i class="fa-brands fa-youtube"></i>
+            Download YouTube Video
+          </h3>
+          <p class="description">
+            Download videos directly from YouTube for analysis. The video will be processed for face detection,
+            recognition, and audio transcription automatically.
+          </p>
+
+          <div class="info-box">
+            <h4><i class="fa-solid fa-circle-info"></i> How to Use</h4>
+            <ul>
+              <li>Copy the YouTube video URL from your browser</li>
+              <li>Paste it in the URL field below</li>
+              <li>Give your video a descriptive name</li>
+              <li>Click download to start processing</li>
+            </ul>
+          </div>
+
+          <div id="youtube-message"></div>
+
+          <div class="form-group">
+            <label for="youtube-url">YouTube URL</label>
+            <input
+              type="text"
+              id="youtube-url"
+              placeholder="https://www.youtube.com/watch?v=..."
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="youtube-name">Video Name</label>
+            <input
+              type="text"
+              id="youtube-name"
+              placeholder="Enter a name for this video"
+              required
+            />
+          </div>
+
+          <button id="youtube-download-btn" onclick="downloadYouTube()">
+            <i class="fa-brands fa-youtube"></i>
+            Download & Process
+          </button>
+          <div id="youtube-loading" class="loading">
+            <i class="fa-solid fa-spinner"></i>
+            Downloading video from YouTube...
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Quick Image Analysis -->
+      <div id="tab-image" class="tab-content">
+        <div class="upload-card">
+          <h3>
+            <i class="fa-solid fa-image"></i>
+            Quick Image Analysis
+          </h3>
+          <p class="description">
+            Upload a single image for instant face detection and recognition.
+            This is a quick analysis mode that provides immediate results without database storage.
+          </p>
+
+          <div class="info-box">
+            <h4><i class="fa-solid fa-circle-info"></i> Quick Analysis Features</h4>
+            <ul>
+              <li>Instant face detection and recognition</li>
+              <li>No waiting for processing queue</li>
+              <li>Direct results display</li>
+              <li>Supports JPG, PNG, BMP formats</li>
+            </ul>
+          </div>
+
+          {% if error %}<p class="error"><i class="fa-solid fa-circle-exclamation"></i>{{ error }}</p>{% endif %}
+
+          <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-group">
+              <label for="image-file">Select Image</label>
+              <div class="file-input-wrapper" id="image-file-wrapper">
+                <i class="fa-solid fa-image"></i>
+                <p><strong>Click to browse</strong> or drag and drop your image here</p>
+                <p class="file-types">Accepts: JPG, PNG, BMP</p>
+                <input
+                  type="file"
+                  name="file"
+                  id="image-file"
+                  accept="image/*"
+                  required
+                  onchange="handleFileSelect(this, 'image')"
+                />
+              </div>
+              <div id="image-file-selected" class="file-selected">
+                <i class="fa-solid fa-file-image"></i>
+                <span id="image-file-name"></span>
+              </div>
+            </div>
+            <button type="submit">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              Analyze Image
+            </button>
+          </form>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    // Tab switching
+    function switchTab(tabName) {
+      // Hide all tabs
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+
+      // Remove active state from all buttons
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+
+      // Show selected tab
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+
+      // Add active state to clicked button
+      event.target.closest('.tab-btn').classList.add('active');
+    }
+
+    // File selection handler
+    function handleFileSelect(input, type) {
+      const fileName = input.files[0]?.name || '';
+      const fileNameDisplay = document.getElementById(`${type}-file-name`);
+      const fileSelected = document.getElementById(`${type}-file-selected`);
+
+      if (fileName) {
+        fileNameDisplay.textContent = fileName;
+        fileSelected.classList.add('show');
+      } else {
+        fileSelected.classList.remove('show');
+      }
+    }
+
+    // Drag and drop handlers
+    ['local-file-wrapper', 'image-file-wrapper'].forEach(wrapperId => {
+      const wrapper = document.getElementById(wrapperId);
+
+      wrapper.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        wrapper.classList.add('drag-over');
+      });
+
+      wrapper.addEventListener('dragleave', () => {
+        wrapper.classList.remove('drag-over');
+      });
+
+      wrapper.addEventListener('drop', (e) => {
+        e.preventDefault();
+        wrapper.classList.remove('drag-over');
+
+        const input = wrapper.querySelector('input[type="file"]');
+        input.files = e.dataTransfer.files;
+
+        const type = wrapperId.split('-')[0];
+        handleFileSelect(input, type);
+      });
+    });
+
+    // CSRF token helper
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    // Upload local file (audio or video)
+    async function uploadLocalFile() {
+      const fileInput = document.getElementById('local-file');
+      const name = document.getElementById('local-name').value.trim();
+      const btn = document.getElementById('local-upload-btn');
+      const loading = document.getElementById('local-loading');
+      const msgDiv = document.getElementById('local-message');
+
+      if (!fileInput.files[0]) {
+        msgDiv.innerHTML = '<p class="error"><i class="fa-solid fa-triangle-exclamation"></i>Please select a file</p>';
+        return;
+      }
+
+      if (!name) {
+        msgDiv.innerHTML = '<p class="error"><i class="fa-solid fa-triangle-exclamation"></i>Please enter a name for the file</p>';
+        return;
+      }
+
+      btn.disabled = true;
+      loading.classList.add('show');
+      msgDiv.innerHTML = '';
+
+      const formData = new FormData();
+      formData.append('media_file', fileInput.files[0]);
+      formData.append('media_name', name);
+
+      try {
+        const response = await fetch('{% url "core:upload_media_to_db" %}', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          msgDiv.innerHTML = `<p class="success"><i class="fa-solid fa-circle-check"></i>${data.message}</p>`;
+          fileInput.value = '';
+          document.getElementById('local-name').value = '';
+          document.getElementById('local-file-selected').classList.remove('show');
+
+          setTimeout(() => {
+            window.location.href = '{% url "core:view_db" %}';
+          }, 2000);
+        } else {
+          msgDiv.innerHTML = `<p class="error"><i class="fa-solid fa-circle-xmark"></i>${data.error}</p>`;
+        }
+      } catch (error) {
+        msgDiv.innerHTML = `<p class="error"><i class="fa-solid fa-circle-xmark"></i>Upload failed: ${error.message}</p>`;
+      } finally {
+        btn.disabled = false;
+        loading.classList.remove('show');
+      }
+    }
+
+    // Download YouTube video
+    async function downloadYouTube() {
+      const url = document.getElementById('youtube-url').value.trim();
+      const name = document.getElementById('youtube-name').value.trim();
+      const btn = document.getElementById('youtube-download-btn');
+      const loading = document.getElementById('youtube-loading');
+      const msgDiv = document.getElementById('youtube-message');
+
+      if (!url || !name) {
+        msgDiv.innerHTML = '<p class="error"><i class="fa-solid fa-triangle-exclamation"></i>Please enter both URL and name</p>';
+        return;
+      }
+
+      btn.disabled = true;
+      loading.classList.add('show');
+      msgDiv.innerHTML = '';
+
+      try {
+        const response = await fetch('{% url "core:download_youtube" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: `youtube_url=${encodeURIComponent(url)}&video_name=${encodeURIComponent(name)}`
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          msgDiv.innerHTML = `<p class="success"><i class="fa-solid fa-circle-check"></i>${data.message}</p>`;
+          document.getElementById('youtube-url').value = '';
+          document.getElementById('youtube-name').value = '';
+
+          setTimeout(() => {
+            window.location.href = '{% url "core:view_db" %}';
+          }, 2000);
+        } else {
+          msgDiv.innerHTML = `<p class="error"><i class="fa-solid fa-circle-xmark"></i>${data.error}</p>`;
+        }
+      } catch (error) {
+        msgDiv.innerHTML = `<p class="error"><i class="fa-solid fa-circle-xmark"></i>Download failed: ${error.message}</p>`;
+      } finally {
+        btn.disabled = false;
+        loading.classList.remove('show');
+      }
+    }
+  </script>
+</body>
+</html>

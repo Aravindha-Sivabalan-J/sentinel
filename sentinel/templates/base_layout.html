@@ -1,0 +1,215 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>SENTINEL - AI Analysis Platform</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f5f5;
+      overflow-x: hidden;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 260px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 1000;
+    }
+
+    .sidebar-header {
+      margin-bottom: 40px;
+      text-align: center;
+    }
+
+    .sidebar-header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      margin-bottom: 5px;
+    }
+
+    .sidebar-header p {
+      font-size: 12px;
+      opacity: 0.8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .menu {
+      list-style: none;
+    }
+
+    .menu-item {
+      margin-bottom: 8px;
+    }
+
+    .menu-item a {
+      display: flex;
+      align-items: center;
+      padding: 14px 16px;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      font-size: 15px;
+    }
+
+    .menu-item a:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateX(5px);
+    }
+
+    .menu-item a.active {
+      background: rgba(255, 255, 255, 0.2);
+      font-weight: 600;
+    }
+
+    .menu-item .icon {
+      margin-right: 12px;
+      font-size: 20px;
+    }
+
+    .main-content {
+      flex: 1;
+      margin-left: 260px;
+      padding: 30px;
+      overflow-y: auto;
+      height: 100vh;
+    }
+
+    .content-header {
+      background: white;
+      padding: 25px 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 30px;
+    }
+
+    .content-header h2 {
+      color: #333;
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .content-header p {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .content-body {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      min-height: 500px;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        width: 70px;
+        padding: 20px 10px;
+      }
+
+      .sidebar-header h1 {
+        font-size: 20px;
+      }
+
+      .sidebar-header p,
+      .menu-item a span {
+        display: none;
+      }
+
+      .menu-item a {
+        justify-content: center;
+      }
+
+      .menu-item .icon {
+        margin-right: 0;
+      }
+
+      .main-content {
+        margin-left: 70px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>/h1>
+        <p>AI Analysis Platform</p>
+      </div>
+      <nav>
+        <ul class="menu">
+          <li class="menu-item">
+            <a href="home.html" class="active">
+              <span class="icon">🏠</span>
+              <span>Home</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="enroll.html">
+              <span class="icon">👤</span>
+              <span>Enroll Person</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="search_media.html">
+              <span class="icon">🔍</span>
+              <span>Search Media</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="view_db.html">
+              <span class="icon">📁</span>
+              <span>Media Library</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="live_detection.html">
+              <span class="icon">📹</span>
+              <span>Live Detection</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="results.html">
+              <span class="icon">📊</span>
+              <span>Results</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="image_result.html">
+              <span class="icon">🖼️</span>
+              <span>Image Results</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div id="page-content">
+        <!-- Page specific content will be loaded here -->
+      </div>
+    </main>
+  </div>
+</body>
+</html>

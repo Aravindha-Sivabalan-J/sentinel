@@ -7,30 +7,53 @@ import logging
 logger = logging.getLogger(__name__)
 
 class DualEmbedder:
-    """Generates embeddings using both ArcFace and FaceNet-512 models"""
+    """Generates embeddings using both ArcFace and FaceNet-512 models with lazy loading"""
     
     def __init__(self):
+        self.arcface_session = None
+        self.facenet_session = None
+        self.arcface_path = os.path.abspath('analysis_pipeline/models/arcface.onnx')
+        self.facenet_path = os.path.abspath('analysis_pipeline/models/facenet512.onnx')
+    
+    def load_models(self):
+        """Load both models on-demand"""
+        if self.arcface_session is None or self.facenet_session is None:
+            try:
+                # Load ArcFace model (112x112 input)
+                self.arcface_session = onnxruntime.InferenceSession(
+                    self.arcface_path,
+                    providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+                )
+                logger.info(f"✅ ArcFace model loaded from {self.arcface_path}")
+                
+                # Load FaceNet-512 model (160x160 input)
+                self.facenet_session = onnxruntime.InferenceSession(
+                    self.facenet_path,
+                    providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+                )
+                logger.info(f"✅ FaceNet-512 model loaded from {self.facenet_path}")
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to load models: {e}")
+                self.arcface_session = None
+                self.facenet_session = None
+    
+    def unload_models(self):
+        """Clear models from GPU memory"""
         try:
-            # Load ArcFace model (112x112 input)
-            arcface_path = os.path.abspath('analysis_pipeline/models/arcface.onnx')
-            self.arcface_session = onnxruntime.InferenceSession(
-                arcface_path,
-                providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
-            )
-            logger.info(f"✅ ArcFace model loaded from {arcface_path}")
+            if self.arcface_session is not None:
+                del self.arcface_session
+                self.arcface_session = None
+            if self.facenet_session is not None:
+                del self.facenet_session
+                self.facenet_session = None
             
-            # Load FaceNet-512 model (160x160 input)
-            facenet_path = os.path.abspath('analysis_pipeline/models/facenet512.onnx')
-            self.facenet_session = onnxruntime.InferenceSession(
-                facenet_path,
-                providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
-            )
-            logger.info(f"✅ FaceNet-512 model loaded from {facenet_path}")
-            
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            logger.info("Face embedding models unloaded from GPU")
         except Exception as e:
-            logger.error(f"❌ Failed to load models: {e}")
-            self.arcface_session = None
-            self.facenet_session = None
+            logger.warning(f"Error unloading embedding models: {e}")
     
     def preprocess_arcface(self, face_img):
         """Preprocess for ArcFace: 112x112, normalized to [-1, +1]"""
@@ -72,17 +95,18 @@ class DualEmbedder:
     def get_dual_embeddings(self, face_img_rgb):
         """
         Generate both ArcFace and FaceNet-512 embeddings from aligned RGB face.
-        Returns: (arcface_embedding, facenet_embedding)
+        Returns: (arcface_embedding, facenet_embedding) or None if failed
         """
+        self.load_models()
         if self.arcface_session is None or self.facenet_session is None:
             logger.error("❌ Models not initialized")
-            return None, None
+            return None
         
         try:
             # Generate ArcFace embedding (112x112)
             arc_blob = self.preprocess_arcface(face_img_rgb)
             if arc_blob is None:
-                return None, None
+                return None
             
             arc_input = self.arcface_session.get_inputs()[0].name
             arc_output = self.arcface_session.get_outputs()[0].name
@@ -97,7 +121,7 @@ class DualEmbedder:
             # Generate FaceNet-512 embedding (160x160)
             fn_blob = self.preprocess_facenet(face_img_rgb)
             if fn_blob is None:
-                return None, None
+                return None
             
             fn_output = self.facenet_session.get_outputs()[0].name
             fn_raw = self.facenet_session.run([fn_output], {
@@ -114,8 +138,8 @@ class DualEmbedder:
             logger.info(f"[DUAL_EMB] ArcFace: shape={arc_emb.shape}, norm={np.linalg.norm(arc_emb):.4f}, first10={arc_emb[:10]}")
             logger.info(f"[DUAL_EMB] FaceNet: shape={fn_emb.shape}, norm={np.linalg.norm(fn_emb):.4f}, first10={fn_emb[:10]}")
             
-            return arc_emb, fn_emb
+            return (arc_emb, fn_emb)
             
         except Exception as e:
             logger.error(f"❌ Failed to generate dual embeddings: {e}")
-            return None, None
+            return None

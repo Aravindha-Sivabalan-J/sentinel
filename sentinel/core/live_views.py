@@ -13,7 +13,7 @@ from analysis_pipeline.dual_vector_db import DualChromaDBManager
 
 logger = logging.getLogger(__name__)
 
-# Initialize
+# Initialize (lazy loading)
 embedder = DualEmbedder()
 db = DualChromaDBManager()
 

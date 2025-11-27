@@ -1,319 +1,740 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Database - SENTINEL</title>
+    <title>Media Database - CannyMinds</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #f5f7fa;
             min-height: 100vh;
-            padding: 20px;
+            overflow-x: hidden;
         }
+
         .container {
-            max-width: 1400px;
-            margin: 0 auto;
+            display: flex;
+            min-height: 100vh;
         }
-        .header {
-            text-align: center;
+
+        .sidebar {
+            width: 220px;
+            background: #25293C;
             color: white;
-            margin-bottom: 30px;
+            padding: 0;
+            box-shadow: 4px 0 15px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
         }
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
+
+        .sidebar-header {
+            padding: 15px 12px;
+            text-align: center;
         }
-        .back-btn {
-            background: white;
-            color: #667eea;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
+
+        .sidebar-header img {
+            width: 60px;
+            max-width: 100%;
+            height: auto;
+            margin: 0 auto 6px;
+            display: block;
+        }
+
+        .sidebar-header p {
+            font-size: 11px;
             font-weight: 600;
-            margin-bottom: 20px;
+            letter-spacing: 1px;
+            color: #cbd5e0;
         }
-        .back-btn:hover {
-            background: #f0f0f0;
+
+        .menu {
+            list-style: none;
+            padding: 12px 10px;
         }
+
+        .menu-item {
+            margin-bottom: 3px;
+        }
+
+        .menu-item a {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            color: #cbd5e0;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 12px;
+        }
+
+        .menu-item a:hover {
+            background: rgba(62, 124, 177, 0.15);
+            color: white;
+            transform: translateX(3px);
+        }
+
+        .menu-item a.active {
+            background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%);
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(62, 124, 177, 0.4);
+        }
+
+        .menu-item .icon {
+            margin-right: 8px;
+            font-size: 14px;
+            width: 20px;
+            text-align: center;
+            display: inline-block;
+        }
+
+        .main-content {
+            flex: 1;
+            margin-left: 220px;
+            padding: 15px 20px 25px;
+            background: #f5f7fa;
+            min-height: 100vh;
+            overflow-y: auto;
+        }
+
+        .page-header {
+            margin-bottom: 15px;
+        }
+
+        .page-header h2 {
+            color: #1a202c;
+            font-size: 20px;
+            margin-bottom: 4px;
+            font-weight: 700;
+        }
+
+        .page-header p {
+            color: #718096;
+            font-size: 12px;
+        }
+
         .media-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 12px;
         }
+
         .media-card {
             background: white;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            transition: all 0.3s;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            border: 1px solid #e2e8f0;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            min-width: 0;
         }
+
         .media-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
+
         .media-card h3 {
-            color: #2d3748;
-            margin-bottom: 10px;
-        }
-        .status {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
+            color: #1a202c;
+            margin-bottom: 8px;
+            font-size: 13px;
             font-weight: 600;
-            margin-bottom: 10px;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.4;
         }
-        .status.pending { background: #fef3c7; color: #92400e; }
-        .status.processing { background: #dbeafe; color: #1e40af; }
-        .status.processed { background: #d1fae5; color: #065f46; }
-        .status.saved { background: #d1fae5; color: #065f46; }
-        .status.failed { background: #fee2e2; color: #991b1b; }
-        .status.stopped { background: #fecaca; color: #7f1d1d; }
+
+        .media-card h3 i {
+            color: #3E7CB1;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+        }
+
+        .status::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status.pending::before {
+            background: #f59e0b;
+        }
+
+        .status.processing {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status.processing::before {
+            background: #3b82f6;
+            animation: pulse 1s infinite;
+        }
+
+        .status.processed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status.processed::before {
+            background: #10b981;
+            animation: none;
+        }
+
+        .status.saved {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status.saved::before {
+            background: #10b981;
+            animation: none;
+        }
+
+        .status.failed {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status.failed::before {
+            background: #ef4444;
+            animation: none;
+        }
+
+        .status.stopped {
+            background: #fecaca;
+            color: #7f1d1d;
+        }
+
+        .status.stopped::before {
+            background: #dc2626;
+            animation: none;
+        }
+
         .progress-bar {
             width: 100%;
-            height: 8px;
+            height: 6px;
             background: #e5e7eb;
-            border-radius: 4px;
+            border-radius: 3px;
             overflow: hidden;
-            margin: 10px 0;
+            margin: 8px 0;
         }
+
         .progress-fill {
             height: 100%;
-            background: #667eea;
+            background: #3E7CB1;
             transition: width 0.3s;
         }
+
         .info {
-            font-size: 14px;
-            color: #6b7280;
-            margin: 5px 0;
+            font-size: 10px;
+            color: #64748b;
+            margin: 6px 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.5;
         }
+
+        .info i {
+            color: #64748b;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
         .btn {
-            padding: 10px 20px;
+            padding: 8px 14px;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
+            font-size: 11px;
             margin-top: 10px;
             width: 100%;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
+
         .btn-primary {
-            background: #667eea;
+            background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%);
             color: white;
+            box-shadow: 0 2px 8px rgba(62, 124, 177, 0.3);
         }
+
         .btn-primary:hover {
-            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(62, 124, 177, 0.4);
         }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
         .btn-primary:disabled {
             background: #cbd5e0;
             cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
+
         .btn-danger {
-            background: #ef4444;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
             color: white;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
         }
+
         .btn-danger:hover {
-            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
         }
+
+        .btn-danger:active {
+            transform: translateY(0);
+        }
+
         .btn-group {
             display: flex;
-            gap: 10px;
-            margin-top: 10px;
+            gap: 8px;
+            margin-top: 8px;
         }
+
         .btn-group .btn {
             flex: 1;
             margin-top: 0;
         }
+
         .no-media {
             text-align: center;
-            color: white;
-            padding: 60px;
-            font-size: 18px;
+            color: #718096;
+            padding: 50px 30px;
+            font-size: 14px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
+
+        .no-media i {
+            display: block;
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+            color: #718096;
+        }
+
         .search-container {
             background: white;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            position: relative;
         }
+
+        .search-container i {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+            opacity: 0.5;
+            color: #64748b;
+        }
+
         .search-input {
             width: 100%;
-            padding: 12px 20px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 16px;
+            padding: 10px 14px 10px 40px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 12px;
             outline: none;
-            transition: border-color 0.3s;
+            transition: all 0.3s ease;
+            font-family: inherit;
         }
+
         .search-input:focus {
-            border-color: #667eea;
+            border-color: #3E7CB1;
+            box-shadow: 0 0 0 4px rgba(62, 124, 177, 0.1);
         }
+
+        .search-input::placeholder {
+            color: #94a3b8;
+        }
+
         .search-results-info {
-            color: white;
-            text-align: center;
+            color: #64748b;
+            margin-bottom: 12px;
+            font-size: 11px;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e2e8f0;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: modalSlide 0.3s ease;
+        }
+
+        @keyframes modalSlide {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
             margin-bottom: 15px;
-            font-size: 14px;
+        }
+
+        .modal-header i {
+            font-size: 24px;
+            color: #f59e0b;
+        }
+
+        .modal-header h3 {
+            font-size: 16px;
+            color: #1a202c;
+            margin: 0;
+        }
+
+        .modal-body {
+            color: #64748b;
+            font-size: 13px;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .modal-btn-cancel {
+            background: #e2e8f0;
+            color: #64748b;
+        }
+
+        .modal-btn-cancel:hover {
+            background: #cbd5e0;
+        }
+
+        .modal-btn-confirm {
+            background: #ef4444;
+            color: white;
+        }
+
+        .modal-btn-confirm:hover {
+            background: #dc2626;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 70px;
+            }
+
+            .sidebar-header h1 {
+                font-size: 18px;
+            }
+
+            .sidebar-header p,
+            .menu-item a span:not(.icon) {
+                display: none;
+            }
+
+            .menu-item a {
+                justify-content: center;
+            }
+
+            .menu-item .icon {
+                margin-right: 0;
+            }
+
+            .main-content {
+                margin-left: 70px;
+                padding: 20px;
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="container">
-        <button class="back-btn" onclick="window.location.href='/'">← Back to Home</button>
-        
-        <div class="header">
-            <h1>📁 Database</h1>
-            <p>All processed media files</p>
-        </div>
-        
-        <div class="search-container">
-            <input type="text" id="searchInput" class="search-input" placeholder="🔍 Search by filename, person name, or transcript content..." />
-        </div>
-        
-        <div id="searchInfo" class="search-results-info" style="display: none;"></div>
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="{% static 'logo/logo2.png' %}" alt="CannyMinds Logo">
+            </div>
+            <nav>
+                <ul class="menu">
+                    <li class="menu-item"><a href="{% url 'core:search_media' %}"><i
+                                class="icon fa-solid fa-magnifying-glass"></i><span>Search Media</span></a></li>
+                    <li class="menu-item"><a href="{% url 'core:home' %}"><i
+                                class="icon fa-solid fa-cloud-arrow-up"></i><span>Upload Media</span></a></li>
+                    <li class="menu-item"><a href="{% url 'core:analyze_image' %}"><i
+                                class="icon fa-solid fa-image"></i><span>Image Analyzer</span></a></li>
+                    <li class="menu-item"><a href="{% url 'core:enroll_person' %}"><i
+                                class="icon fa-solid fa-user-plus"></i><span>Enroll Person</span></a></li>
+                    <li class="menu-item"><a href="{% url 'core:live_detection' %}"><i
+                                class="icon fa-solid fa-video"></i><span>Live Detection</span></a></li>
+                    <li class="menu-item"><a href="{% url 'core:view_db' %}" class="active"><i
+                                class="icon fa-solid fa-database"></i><span>Media Library</span></a></li>
+                </ul>
+            </nav>
+        </aside>
 
-        <div id="mediaGrid" class="media-grid"></div>
-        <div id="noMedia" class="no-media" style="display: none;">
-            No media files in database yet
+        <main class="main-content">
+            <div class="page-header">
+                <h2>Media Library</h2>
+                <p>View and manage all processed media files</p>
+            </div>
+
+
+
+            <div id="mediaGrid" class="media-grid"></div>
+            <div id="noMedia" class="no-media" style="display: none;">
+                <i class="fa-solid fa-folder-open"></i>
+                No media files in database yet
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal">
+            <div class="modal-header">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <h3 id="modalTitle">Confirm Action</h3>
+            </div>
+            <div class="modal-body" id="modalMessage"></div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" id="modalConfirm">Confirm</button>
+            </div>
         </div>
     </div>
 
     <script>
         let searchTimeout;
-        
-        async function loadMedia(searchQuery = '') {
+        let modalCallback = null;
+
+        function showConfirm(title, message, onConfirm) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            modalCallback = onConfirm;
+            document.getElementById('confirmModal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('confirmModal').classList.remove('show');
+            modalCallback = null;
+        }
+
+        document.getElementById('modalConfirm').onclick = function () {
+            if (modalCallback) modalCallback();
+            closeModal();
+        };
+
+        async function loadMedia() {
             try {
-                const url = searchQuery ? `/api/search-media/?q=${encodeURIComponent(searchQuery)}` : '/api/get-all-media/';
-                const response = await fetch(url);
+                const response = await fetch('/api/get-all-media/');
                 const data = await response.json();
-                
+
                 const grid = document.getElementById('mediaGrid');
                 const noMedia = document.getElementById('noMedia');
-                const searchInfo = document.getElementById('searchInfo');
-                
-                if (searchQuery) {
-                    searchInfo.style.display = 'block';
-                    searchInfo.textContent = `Found ${data.media.length} result(s) for "${searchQuery}"`;
-                } else {
-                    searchInfo.style.display = 'none';
-                }
-                
+
                 if (!data.media || data.media.length === 0) {
-                    if (searchQuery) {
-                        grid.innerHTML = '';
-                        noMedia.style.display = 'block';
-                        noMedia.innerHTML = `<p>No results found for "${searchQuery}"</p><p style="font-size: 14px; margin-top: 10px;">Try searching by filename, person name, or transcript content</p>`;
-                    } else {
-                        noMedia.style.display = 'block';
-                        noMedia.innerHTML = 'No media files in database yet';
-                    }
+                    noMedia.style.display = 'block';
+                    noMedia.innerHTML = '<i class="fa-solid fa-folder-open"></i>No media files in database yet';
+                    grid.innerHTML = '';
                     return;
                 }
-                
+
                 noMedia.style.display = 'none';
-                grid.innerHTML = data.media.map(item => `
-                    <div class="media-card">
-                        <h3>${item.filename}</h3>
-                        <span class="status ${item.status}">${item.status.toUpperCase()}</span>
-                        
-                        ${item.progress !== undefined ? `
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: ${item.progress}%"></div>
-                            </div>
-                            <div class="info">Progress: ${item.progress}%</div>
-                        ` : ''}
-                        
-                        <div class="info">Uploaded: ${new Date(item.uploaded_at).toLocaleString()}</div>
-                        
-                        ${item.status === 'saved' || item.status === 'processed' ? `
-                            <button class="btn btn-primary" onclick="viewMedia(${item.id})">
-                                👁️ View Results
-                            </button>
-                        ` : item.status === 'processing' ? `
-                            <div class="btn-group">
-                                <button class="btn btn-danger" onclick="stopProcessing(${item.id})">
-                                    ⏹️ Stop
-                                </button>
-                            </div>
-                        ` : item.status === 'failed' || item.status === 'stopped' ? `
-                            <button class="btn btn-primary" onclick="restartProcessing(${item.id})">
-                                🔄 Restart
-                            </button>
-                        ` : item.status === 'pending' ? `
-                            <button class="btn btn-primary" disabled>
-                                ⏳ Waiting...
-                            </button>
-                        ` : ''}
-                    </div>
-                `).join('');
-                
+
+                let html = '';
+                data.media.forEach(function(item) {
+                    html += '<div class="media-card">';
+                    html += '<h3><i class="fa-solid fa-file"></i>' + (item.filename || '') + '</h3>';
+                    html += '<span class="status ' + (item.status || '') + '">' + ((item.status || '').toString().toUpperCase()) + '</span>';
+
+                    if (item.progress !== undefined) {
+                        html += '<div class="progress-bar">';
+                        html += '<div class="progress-fill" style="width: ' + (item.progress) + '%"></div>';
+                        html += '</div>';
+                        html += '<div class="info">Progress: ' + (item.progress) + '%</div>';
+                    }
+
+                    html += '<div class="info"><i class="fa-solid fa-clock"></i> Uploaded: ' + new Date(item.uploaded_at).toLocaleString() + '</div>';
+
+                    if (item.status === 'processing') {
+                        html += '<div class="btn-group">';
+                        html += '<button class="btn btn-danger" onclick="stopProcessing(' + item.id + ')">';
+                        html += '<i class="fa-solid fa-stop"></i> Stop';
+                        html += '</button>';
+                        html += '</div>';
+                    } else if (item.status === 'failed' || item.status === 'stopped') {
+                        html += '<button class="btn btn-primary" onclick="restartProcessing(' + item.id + ')">';
+                        html += '<i class="fa-solid fa-rotate"></i> Restart';
+                        html += '</button>';
+                    } else if (item.status === 'pending') {
+                        html += '<button class="btn btn-primary" disabled>';
+                        html += '<i class="fa-solid fa-hourglass-half"></i> Waiting...';
+                        html += '</button>';
+                    }
+
+                    html += '</div>';
+                });
+
+                grid.innerHTML = html;
+
             } catch (error) {
                 console.error('Error loading media:', error);
             }
         }
-        
+
         function viewMedia(id) {
             window.location.href = `/view-media/${id}/`;
         }
-        
+
         async function stopProcessing(id) {
-            if (!confirm('Are you sure you want to stop processing this file?')) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/stop-processing/${id}/`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCookie('csrftoken')
+            showConfirm('Stop Processing', 'Are you sure you want to stop processing this file?', async () => {
+
+                try {
+                    const response = await fetch(`/stop-processing/${id}/`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': getCookie('csrftoken')
+                        }
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        loadMedia();
+                    } else {
+                        console.error('Error:', data.error || 'Unknown error');
                     }
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert('Processing stopped successfully');
-                    loadMedia();
-                } else {
-                    alert('Error: ' + (data.error || 'Unknown error'));
+                } catch (error) {
+                    console.error('Error stopping processing:', error);
                 }
-            } catch (error) {
-                console.error('Error stopping processing:', error);
-                alert('Failed to stop processing');
-            }
+            });
         }
-        
+
         async function restartProcessing(id) {
-            if (!confirm('Restart processing for this file?')) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/restart-processing/${id}/`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCookie('csrftoken')
+            showConfirm('Restart Processing', 'Restart processing for this file?', async () => {
+
+                try {
+                    const response = await fetch(`/restart-processing/${id}/`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': getCookie('csrftoken')
+                        }
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        loadMedia();
+                    } else {
+                        console.error('Error:', data.error || 'Unknown error');
                     }
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert('Processing restarted successfully');
-                    loadMedia();
-                } else {
-                    alert('Error: ' + (data.error || 'Unknown error'));
+                } catch (error) {
+                    console.error('Error restarting processing:', error);
                 }
-            } catch (error) {
-                console.error('Error restarting processing:', error);
-                alert('Failed to restart processing');
-            }
+            });
         }
-        
+
         function getCookie(name) {
             let cookieValue = null;
             if (document.cookie && document.cookie !== '') {
@@ -328,27 +749,15 @@
             }
             return cookieValue;
         }
-        
-        // Search functionality
-        document.getElementById('searchInput').addEventListener('input', function(e) {
-            const query = e.target.value.trim();
-            
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                loadMedia(query);
-            }, 300); // Debounce search by 300ms
-        });
-        
+
         // Load media on page load
         loadMedia();
-        
-        // Auto-refresh every 5 seconds if there are processing items (only when not searching)
+
+        // Auto-refresh every 5 seconds
         setInterval(() => {
-            const searchQuery = document.getElementById('searchInput').value.trim();
-            if (!searchQuery) {
-                loadMedia();
-            }
+            loadMedia();
         }, 5000);
     </script>
 </body>
+
 </html>

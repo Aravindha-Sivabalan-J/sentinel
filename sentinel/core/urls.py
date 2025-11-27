@@ -4,9 +4,12 @@ from . import live_views
 
 urlpatterns = [
     path("", views.home_view, name="home"),
+    path("analyze-image/", views.analyze_image_view, name="analyze_image"),
     path("results/<str:task_id>/", views.results_page, name="results_page"),
     path("task-status/<uuid:task_id>/", views.task_status, name="task_status"),
     path("enroll/", views.enroll_view, name="enroll_person"),
+    path("youtube-download/", views.youtube_download_view, name="youtube_download_page"),
+    path("audio-to-text/", views.audio_to_text_view, name="audio_to_text_page"),
     path("download-youtube/", views.download_youtube_video, name="download_youtube"),
     path("upload-audio/", views.upload_audio_to_db, name="upload_audio"),
     path("upload-media-to-db/", views.upload_media_to_db, name="upload_media_to_db"),

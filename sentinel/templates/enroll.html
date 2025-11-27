@@ -1,53 +1,437 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Enroll Person</title>
+  <title>Enroll Person - CannyMinds</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 40px;
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    form {
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f7fa;
+      overflow: hidden;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 220px;
+      background: #25293C;
+      color: white;
+      padding: 0;
+      box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 1000;
+    }
+
+
+
+    .sidebar-header {
+      padding: 15px 12px;
+      text-align: center;
+    }
+
+    .sidebar-header img {
+      width: 60px;
+      max-width: 100%;
+      height: auto;
+      margin: 0 auto 6px;
+      display: block;
+    }
+
+    .sidebar-header p {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      color: #cbd5e0;
+    }
+
+    .menu {
+      list-style: none;
+      padding: 12px 10px;
+    }
+
+    .menu-item {
+      margin-bottom: 3px;
+    }
+
+    .menu-item a {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      color: #cbd5e0;
+      text-decoration: none;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      font-size: 12px;
+    }
+
+    .menu-item a:hover {
+      background: rgba(62, 124, 177, 0.15);
+      color: white;
+      transform: translateX(3px);
+    }
+
+    .menu-item a.active {
+      background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%);
+      color: white;
+      font-weight: 600;
+      box-shadow: 0 4px 15px rgba(62, 124, 177, 0.4);
+    }
+
+    .menu-item .icon {
+      margin-right: 8px;
+      font-size: 14px;
+      width: 20px;
+      text-align: center;
+      display: inline-block;
+    }
+
+    .main-content {
+      flex: 1;
+      margin-left: 220px;
+      padding: 15px 20px;
+      background: #f5f7fa;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .page-header {
+      margin-bottom: 15px;
+    }
+
+    .page-header h2 {
+      color: #1a202c;
+      font-size: 20px;
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+
+    .page-header p {
+      color: #718096;
+      font-size: 12px;
+    }
+
+    .enroll-card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .form-group {
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      max-width: 400px;
     }
-    input, button {
-      padding: 8px;
-      font-size: 1em;
+
+    .form-group label {
+      color: #2d3748;
+      font-weight: 600;
+      margin-bottom: 5px;
+      font-size: 12px;
     }
-    .message {
-      margin-top: 15px;
-      font-weight: bold;
+
+    .form-group input[type="text"],
+    .form-group input[type="number"] {
+      padding: 8px 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 12px;
+      transition: all 0.3s ease;
+      font-family: inherit;
     }
+
+    .form-group input[type="text"]:focus,
+    .form-group input[type="number"]:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #3E7CB1;
+      box-shadow: 0 0 0 3px rgba(62, 124, 177, 0.1);
+    }
+
+    .drop-zone {
+      position: relative;
+      background: #f8fafc;
+      border: 2px dashed #cbd5e0;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .drop-zone:hover {
+      border-color: #3E7CB1;
+      background: rgba(62, 124, 177, 0.05);
+    }
+
+    .drop-zone.drag-over {
+      border-color: #3E7CB1;
+      background: rgba(62, 124, 177, 0.1);
+      border-style: solid;
+    }
+
+    .drop-zone i {
+      font-size: 32px;
+      color: #cbd5e0;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .drop-zone p {
+      color: #64748b;
+      font-size: 12px;
+      margin: 0;
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .image-preview {
+      margin-top: 10px;
+      display: none;
+      text-align: center;
+      position: relative;
+    }
+
+    .image-preview img {
+      max-width: 150px;
+      max-height: 150px;
+      border-radius: 8px;
+      border: 2px solid #e2e8f0;
+    }
+
+    .remove-btn {
+      margin-top: 8px;
+      padding: 4px 10px;
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      width: auto;
+    }
+
+    .remove-btn:hover {
+      background: #dc2626;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin-top: 8px;
+      background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(62, 124, 177, 0.3);
+      width: 100%;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(62, 124, 177, 0.4);
+    }
+
     .error {
-      color: red;
+      color: #c53030;
+      background: #fed7d7;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      border-left: 3px solid #c53030;
+      font-size: 11px;
     }
+
     .success {
-      color: green;
+      color: #2f855a;
+      background: #c6f6d5;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      border-left: 3px solid #2f855a;
+      font-size: 11px;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        width: 70px;
+      }
+
+      .sidebar-header h1 {
+        font-size: 18px;
+      }
+
+      .sidebar-header p,
+      .menu-item a span:not(.icon) {
+        display: none;
+      }
+
+      .menu-item a {
+        justify-content: center;
+      }
+
+      .menu-item .icon {
+        margin-right: 0;
+      }
+
+      .main-content {
+        margin-left: 70px;
+        padding: 20px;
+      }
+
+      .enroll-card {
+        padding: 25px;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Enroll a Person</h1>
-  <form method="POST" enctype="multipart/form-data">
-    {% csrf_token %}
-    <label>Person ID: <input type="text" name="person_id" required></label>
-    <label>Job: <input type="text" name="job" required></label>
-    <label>Age: <input type="number" name="age" required></label>
-    <label>Height (cm): <input type="number" name="height" required></label>
-    <label>Weight (kg): <input type="number" name="weight" required></label>
-    <label>Face Image: <input type="file" name="face_image" accept="image/*" required></label>
-    <button type="submit">Enroll</button>
-  </form>
+  <div class="container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="{% static 'logo/logo2.png' %}" alt="CannyMinds Logo">
+      </div>
+      <nav>
+        <ul class="menu">
+          <li class="menu-item"><a href="{% url 'core:search_media' %}"><i class="icon fa-solid fa-magnifying-glass"></i><span>Search Media</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:home' %}"><i class="icon fa-solid fa-cloud-arrow-up"></i><span>Upload Media</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:analyze_image' %}"><i class="icon fa-solid fa-image"></i><span>Image Analyzer</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:enroll_person' %}" class="active"><i class="icon fa-solid fa-user-plus"></i><span>Enroll Person</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:live_detection' %}"><i class="icon fa-solid fa-video"></i><span>Live Detection</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:view_db' %}"><i class="icon fa-solid fa-database"></i><span>Media Library</span></a></li>
+        </ul>
+      </nav>
+    </aside>
 
-  {% if error %}
-    <div class="message error">{{ error }}</div>
-  {% endif %}
-  {% if success %}
-    <div class="message success">{{ success }}</div>
-  {% endif %}
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Enroll New Person</h2>
+        <p>Register a new person in the system for facial recognition</p>
+      </div>
+
+      <div class="enroll-card">
+        {% if error %}
+          <div class="error">{{ error }}</div>
+        {% endif %}
+        {% if success %}
+          <div class="success">{{ success }}</div>
+        {% endif %}
+
+        <form method="POST" enctype="multipart/form-data" class="form-grid">
+          {% csrf_token %}
+
+          <div class="form-group">
+            <label for="face_image">Face Image *</label>
+            <div class="drop-zone" id="drop-zone">
+              <i class="fa-solid fa-cloud-upload-alt"></i>
+              <p><strong>Click to upload</strong> or drag and drop</p>
+              <p style="font-size: 10px; color: #94a3b8; margin-top: 4px;">JPG, PNG, JPEG</p>
+              <input type="file" id="face_image" name="face_image" accept="image/*" required onchange="handleFileSelect(this)">
+            </div>
+            <div class="image-preview" id="image-preview">
+              <img id="preview-img" src="" alt="Preview">
+              <br>
+              <button type="button" class="remove-btn" onclick="removeImage()">
+                <i class="fa-solid fa-trash"></i> Remove Photo
+              </button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="person_id">Person ID *</label>
+            <input type="text" id="person_id" name="person_id" required placeholder="Enter unique person ID">
+          </div>
+
+          <div class="form-group">
+            <label for="age">Age *</label>
+            <input type="number" id="age" name="age" required min="1" max="150" placeholder="Enter age">
+          </div>
+
+          <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="3" placeholder="Enter additional details about the person" style="padding: 8px 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 12px; font-family: inherit; resize: vertical;"></textarea>
+          </div>
+
+          <button type="submit">Enroll Person</button>
+        </form>
+      </div>
+    </main>
+  </div>
+  <script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('face_image');
+    const imagePreview = document.getElementById('image-preview');
+    const previewImg = document.getElementById('preview-img');
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      fileInput.files = e.dataTransfer.files;
+      handleFileSelect(fileInput);
+    });
+
+    function handleFileSelect(input) {
+      const file = input.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          previewImg.src = e.target.result;
+          imagePreview.style.display = 'block';
+          dropZone.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function removeImage() {
+      fileInput.value = '';
+      imagePreview.style.display = 'none';
+      dropZone.style.display = 'block';
+    }
+  </script>
 </body>
 </html>

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python manage.py check:*)",
+      "Bash(for file in search_media.html results.html image_result.html view_db.html)",
+      "Bash(do echo \"Processing $file...\")",
+      "Bash(done)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

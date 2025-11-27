@@ -254,64 +254,188 @@
 
 
 
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Video Analysis Results</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Analysis Results - CannyMinds</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    /* GENERAL STYLING */
-    body {
+    * {
       margin: 0;
-      font-family: 'Inter', sans-serif;
-      display: flex;
-      height: 100vh;
-      background: #f5f6fa;
-      color: #333;
+      padding: 0;
+      box-sizing: border-box;
     }
-    h2 { margin-top: 0; font-weight: 600; color: #2f3640; }
-    h3 { margin: 0 0 10px 0; color: #2f3640; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f7fa;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    .container {
+      display: flex;
+      min-height: 100vh;
+    }
+    h2 { 
+      margin: 0 0 8px 0; 
+      font-weight: 700; 
+      color: #1a202c;
+      font-size: 18px;
+    }
+    h3 { 
+      margin: 0 0 8px 0; 
+      color: #2d3748;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .sidebar {
+      width: 220px;
+      background: #25293C;
+      color: white;
+      padding: 0;
+      box-shadow: 4px 0 15px rgba(0,0,0,0.1);
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 1000;
+    }
+
+    .sidebar-header {
+      padding: 15px 12px;
+      text-align: center;
+    }
+    .sidebar-header img {
+      width: 60px;
+      margin: 0 auto 6px;
+      display: block;
+    }
+    .sidebar-header p {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      color: #cbd5e0;
+    }
+    .menu {
+      list-style: none;
+      padding: 12px 10px;
+    }
+    .menu-item {
+      margin-bottom: 3px;
+    }
+    .menu-item a {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      color: #cbd5e0;
+      text-decoration: none;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      font-size: 12px;
+    }
+    .menu-item a:hover {
+      background: rgba(62, 124, 177, 0.15);
+      color: white;
+      transform: translateX(3px);
+    }
+    .menu-item a.active {
+      background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%);
+      color: white;
+      font-weight: 600;
+      box-shadow: 0 4px 15px rgba(62, 124, 177, 0.4);
+    }
+    .menu-item .icon {
+      margin-right: 8px;
+      font-size: 14px;
+      width: 20px;
+      text-align: center;
+    }
+
+    .main-layout {
+      display: flex;
+      flex: 1;
+      margin-left: 220px;
+      min-height: 100vh;
+    }
 
     /* LEFT: VIDEO */
     .video-section {
-      flex: 2;
-      padding: 20px;
+      flex: 1.5;
+      padding: 15px 20px;
       overflow-y: auto;
+      background: #f5f7fa;
     }
     #video-container {
-      background: #fff;
+      background: white;
       border-radius: 10px;
       padding: 15px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      margin-top: 12px;
+    }
+    #caption-display {
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 12px 20px;
+      margin-top: 10px;
+      border-radius: 6px;
+      text-align: center;
+      font-size: 16px;
+      line-height: 1.5;
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .video-wrapper {
+      position: relative;
+      padding-top: 56.25%; /* 16:9 aspect ratio */
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
     }
     video {
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100%;
+      height: 100%;
       border-radius: 8px;
       background: #000;
+    }
+    audio {
+      width: 100%;
+      border-radius: 6px;
     }
 
     /* RIGHT: RESULTS */
     .results-section {
       flex: 1;
-      padding: 20px;
+      padding: 15px 20px 25px 15px;
       overflow-y: auto;
-      border-left: 1px solid #dcdde1;
+      background: #ffffff;
+      border-left: 1px solid #e2e8f0;
+      max-height: 100vh;
     }
     #faces-container {
       display: flex;
       flex-direction: column;
-      gap: 15px;
+      gap: 10px;
+      margin-top: 12px;
     }
 
     .person-card {
-      background: #fff;
+      background: #f8fafc;
       border-radius: 8px;
-      padding: 10px;
-      box-shadow: 0 1px 5px rgba(0,0,0,0.1);
-      transition: transform 0.2s;
+      padding: 12px;
+      border: 1px solid #e2e8f0;
+      transition: all 0.3s ease;
     }
-    .person-card:hover { transform: translateY(-2px); }
+    .person-card:hover { 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
     .faces {
       display: flex;
       flex-wrap: wrap;
@@ -322,87 +446,206 @@
       width: 70px;
       height: 70px;
       object-fit: cover;
-      border-radius: 6px;
-      border: 1px solid #ccc;
+      border-radius: 8px;
+      border: 2px solid #e2e8f0;
       cursor: pointer;
-      transition: transform 0.2s;
+      transition: all 0.3s ease;
     }
-    .faces img:hover { transform: scale(1.1); }
+    .faces img:hover { 
+      transform: scale(1.08); 
+      border-color: #3E7CB1;
+      box-shadow: 0 4px 12px rgba(62, 124, 177, 0.2);
+    }
 
     .timestamps {
-      font-size: 0.85em;
-      color: #555;
-      margin-top: 5px;
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 8px;
+      background: white;
+      padding: 8px;
+      border-radius: 6px;
     }
-    .timestamps ul { padding-left: 20px; margin: 5px 0 0 0; }
+    .timestamps ul { 
+      padding-left: 16px; 
+      margin: 6px 0 0 0; 
+    }
+    .timestamps li {
+      margin: 3px 0;
+    }
 
     /* TRANSCRIPT */
     .transcript {
-      margin-top: 25px;
-      background: #fff;
-      padding: 15px;
-      border-radius: 10px;
-      box-shadow: 0 1px 8px rgba(0,0,0,0.05);
-      max-height: 300px;
+      margin-top: 15px;
+      background: #f8fafc;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      max-height: 80vh;
       overflow-y: auto;
     }
     .transcript span {
-      transition: background-color 0.2s ease;
+      transition: all 0.2s ease;
       cursor: pointer;
     }
-    .highlight { background-color: #ffeaa7; }
+    .transcript span:hover {
+      text-decoration: underline;
+    }
+    .highlight { 
+      background-color: #fef3c7;
+      font-weight: 600;
+      color: #92400e;
+    }
+    #transcript-text {
+      font-size: 12px;
+      line-height: 1.6;
+      color: #334155;
+      padding-bottom: 50%;
+    }
 
     /* ERROR/NOTICE */
     .notice, .error {
-      padding: 12px;
+      padding: 10px 14px;
       border-radius: 8px;
-      margin-bottom: 15px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      border: 1px solid #e2e8f0;
     }
-    .notice { background: #f1f2f6; color: #2f3640; }
-    .error { background: #ffcccc; color: #c0392b; }
+    .notice { 
+      background: #e0f2fe; 
+      color: #0c4a6e;
+    }
+    .error { 
+      background: #fee2e2; 
+      color: #991b1b;
+    }
 
     .small {
-      font-size: 0.85em;
-      color: #7f8c8d;
+      font-size: 11px;
+      color: #64748b;
       margin-top: 8px;
     }
     .retry-btn {
-      margin-top: 8px;
-      padding: 6px 12px;
-      border-radius: 5px;
+      margin-top: 10px;
+      padding: 8px 16px;
+      border-radius: 6px;
       border: none;
-      background: #00a8ff;
-      color: #fff;
+      background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%);
+      color: white;
       cursor: pointer;
       font-weight: 600;
-      transition: background 0.2s;
+      font-size: 12px;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(62, 124, 177, 0.3);
     }
-    .retry-btn:hover { background: #0097e6; }
+    .retry-btn:hover { 
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(62, 124, 177, 0.4);
+    }
 
+    @media (max-width: 768px) {
+      .sidebar {
+        width: 70px;
+      }
+      .sidebar-header p,
+      .menu-item a span:not(.icon) {
+        display: none;
+      }
+      .menu-item a {
+        justify-content: center;
+      }
+      .menu-item .icon {
+        margin-right: 0;
+      }
+      .main-layout {
+        margin-left: 70px;
+        flex-direction: column;
+      }
+      .video-section, .results-section {
+        padding: 20px;
+      }
+    }
   </style>
 </head>
 <body>
-  <!-- Hidden div to safely pass task_id to JS -->
-  <div id="task" data-task-id="{{ task_id }}"></div>
+  <div class="container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="{% static 'logo/logo2.png' %}" alt="SENTINEL Logo">
+        <p>SENTINEL</p>
+      </div>
+      <nav>
+        <ul class="menu">
+          <li class="menu-item">
+            <a href="{% url 'core:search_media' %}">
+              <i class="icon fa-solid fa-magnifying-glass"></i>
+              <span>Search Media</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:home' %}">
+              <i class="icon fa-solid fa-cloud-arrow-up"></i>
+              <span>Upload Media</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:analyze_image' %}">
+              <i class="icon fa-solid fa-image"></i>
+              <span>Image Analyzer</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:enroll_person' %}">
+              <i class="icon fa-solid fa-user-plus"></i>
+              <span>Enroll Person</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:live_detection' %}">
+              <i class="icon fa-solid fa-video"></i>
+              <span>Live Detection</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:view_db' %}">
+              <i class="icon fa-solid fa-database"></i>
+              <span>Media Library</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
 
-  <!-- LEFT: Video player -->
-  <div class="video-section">
-    <h2>Processed Video</h2>
-    <div id="video-container" class="notice">
-      <p id="video-placeholder">Processing video... (this page polls for updates automatically)</p>
-    </div>
-  </div>
+    <!-- Main Content Area -->
+    <div class="main-layout">
+      <!-- Hidden div to safely pass task_id to JS -->
+      <div id="task" data-task-id="{{ task_id }}" style="display: none;"></div>
 
-  <!-- RIGHT: Results -->
-  <div class="results-section">
-    <h2>Analysis Results</h2>
-    <div id="faces-container" class="notice">
-      <p>Waiting for results...</p>
-    </div>
+      <!-- LEFT: Video player -->
+      <div class="video-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h2 style="margin: 0;"><i class="fa-solid fa-video"></i> Processed Video</h2>
+          <a href="{% url 'core:home' %}" style="padding: 6px 12px; background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%); color: white; text-decoration: none; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(62, 124, 177, 0.3);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(62, 124, 177, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(62, 124, 177, 0.3)';">
+            <i class="fa-solid fa-clock-rotate-left"></i> Recent Uploads
+          </a>
+        </div>
+        <div id="video-container" class="notice">
+          <p id="video-placeholder">Processing video... (this page polls for updates automatically)</p>
+        </div>
+      </div>
 
-    <div class="transcript">
-      <h3>Transcript</h3>
-      <div id="transcript-text">Waiting...</div>
+      <!-- RIGHT: Results -->
+      <div class="results-section">
+        <h2><i class="fa-solid fa-chart-bar"></i> Analysis Results</h2>
+        <div id="faces-container" class="notice">
+          <p>Waiting for results...</p>
+        </div>
+
+        <div class="transcript">
+          <h3><i class="fa-solid fa-file-lines"></i> Transcript</h3>
+          <div id="transcript-text">Waiting...</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -456,10 +699,15 @@
           }
           facesHtml += `</div>`;
 
+          // Make face timestamps clickable so they seek the video to the appearance
           facesHtml += `<div class="timestamps"><strong>Appearances:</strong><ul>`;
           if (Array.isArray(pdata.timestamps)) {
             for (const ts of pdata.timestamps) {
-              facesHtml += `<li>${ts.start}s – ${ts.end}s</li>`;
+              const start = ts.start || 0;
+              const end = ts.end || 0;
+              // add data-start attribute to allow JS to seek when clicked
+              facesHtml += `<li class="face-ts" data-start="${start}" data-end="${end}">` +
+                           `${formatTime(start)} – ${formatTime(end)}</li>`;
             }
           }
           facesHtml += `</ul></div></div>`;
@@ -468,6 +716,15 @@
         facesHtml = "<p>No faces detected.</p>";
       }
       facesDiv.innerHTML = facesHtml;
+      // Attach click listeners to timestamp items after inserting HTML
+      const tsItems = document.querySelectorAll('#faces-container .face-ts');
+      tsItems.forEach(item => {
+        item.style.cursor = 'pointer';
+        item.addEventListener('click', () => {
+          const s = parseFloat(item.dataset.start || 0);
+          if (videoEl) videoEl.currentTime = s;
+        });
+      });
     }
 
     async function attachVideoToDOM(videoPath) {
@@ -494,20 +751,30 @@
         return false;
       }
 
+      // Create wrapper for aspect ratio
+      const videoWrapper = document.createElement("div");
+      videoWrapper.className = "video-wrapper";
+
       videoEl = document.createElement("video");
       videoEl.setAttribute("controls", "");
-      videoEl.setAttribute("width", "100%");
       videoEl.src = url;
 
       videoEl.addEventListener("error", (e) => {
         videoContainer.innerHTML = `<div class="error">Failed to load video (see console). <a href="${url}" target="_blank">Open raw file</a></div>`;
       });
 
+      videoWrapper.appendChild(videoEl);
+
+      const captionDisplay = document.createElement("div");
+      captionDisplay.id = "caption-display";
+      captionDisplay.textContent = "Captions will appear here...";
+
       const openLink = document.createElement("div");
       openLink.className = "small";
       openLink.innerHTML = `<a href="${url}" target="_blank">Open annotated video in new tab</a>`;
 
-      videoContainer.appendChild(videoEl);
+      videoContainer.appendChild(videoWrapper);
+      videoContainer.appendChild(captionDisplay);
       videoContainer.appendChild(openLink);
 
       try { videoEl.load(); } catch (e) {}
@@ -515,34 +782,82 @@
       return true;
     }
 
+    // Render transcript as plain sentences (no timestamps). Clicking transcript
+    // text will NOT seek the video — timestamps are shown and used on the faces list only.
+    // Render transcript sentences with approximate timestamps (fast method).
+    // Sentences are clickable and will seek the video to their start time.
     function renderTranscript(segments) {
       const transcriptDiv = document.getElementById("transcript-text");
       transcriptDiv.innerHTML = "";
-      transcriptSegments = segments;
+      transcriptSegments = segments || [];
 
-      segments.forEach((seg, idx) => {
-        const span = document.createElement("span");
-        span.textContent = seg.text + " ";
-        span.dataset.start = seg.start;
-        span.dataset.end = seg.end;
-        span.addEventListener("click", () => {
-          if (videoEl) videoEl.currentTime = parseFloat(seg.start);
+      if (!Array.isArray(segments) || segments.length === 0) {
+        return;
+      }
+
+      segments.forEach((seg) => {
+        const wrapper = document.createElement('div');
+        wrapper.style.marginBottom = '12px';
+        wrapper.style.lineHeight = '1.6';
+        wrapper.style.padding = '4px 8px';
+        wrapper.style.borderRadius = '4px';
+        wrapper.style.transition = 'all 0.3s ease';
+        wrapper.dataset.start = seg.start;
+        wrapper.dataset.end = seg.end;
+
+        const ts = document.createElement('span');
+        ts.textContent = `[${formatTime(seg.start)} - ${formatTime(seg.end)}] `;
+        ts.style.color = '#3E7CB1';
+        ts.style.fontWeight = '700';
+        ts.style.fontSize = '0.85em';
+        ts.style.marginRight = '8px';
+        ts.style.cursor = 'pointer';
+        ts.addEventListener('click', () => {
+          if (videoEl) videoEl.currentTime = parseFloat(seg.start || 0);
         });
-        transcriptDiv.appendChild(span);
+
+        const text = document.createElement('span');
+        text.textContent = seg.text || '';
+        text.style.cursor = 'pointer';
+        text.addEventListener('click', () => {
+          if (videoEl) videoEl.currentTime = parseFloat(seg.start || 0);
+        });
+
+        wrapper.appendChild(ts);
+        wrapper.appendChild(text);
+        transcriptDiv.appendChild(wrapper);
       });
+    }
+    
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
     function highlightTranscript(currentTime) {
-      const spans = document.querySelectorAll("#transcript-text span");
-      spans.forEach(span => {
-        const start = parseFloat(span.dataset.start);
-        const end = parseFloat(span.dataset.end);
+      const captionDisplay = document.getElementById('caption-display');
+      const wrappers = document.querySelectorAll("#transcript-text > div");
+      let currentCaption = "";
+      
+      wrappers.forEach(wrapper => {
+        const start = parseFloat(wrapper.dataset.start || 0);
+        const end = parseFloat(wrapper.dataset.end || 0);
+        
         if (currentTime >= start && currentTime <= end) {
-          span.classList.add("highlight");
+          wrapper.style.backgroundColor = "#fef3c7";
+          wrapper.style.fontWeight = "600";
+          wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          currentCaption = wrapper.querySelector('span:last-child')?.textContent || "";
         } else {
-          span.classList.remove("highlight");
+          wrapper.style.backgroundColor = "transparent";
+          wrapper.style.fontWeight = "normal";
         }
       });
+      
+      if (captionDisplay) {
+        captionDisplay.textContent = currentCaption;
+      }
     }
 
     function setupVideoHighlighting() {
@@ -569,18 +884,22 @@
         const audioPath = results.audio_path;
         if (audioPath) {
           const audioUrl = normalizeMediaUrl(mediaUrlTemplate, audioPath);
-          document.getElementById("video-container").innerHTML = `
+          const audioContainer = document.getElementById("video-container");
+          audioContainer.innerHTML = `
             <div class="notice">
-              <p>🎵 Audio File</p>
-              <audio controls style="width: 100%; margin-top: 10px;">
+              <p><i class="fa-solid fa-music"></i> Audio File</p>
+              <audio id="audio-player" controls style="width: 100%; margin-top: 10px;">
                 <source src="${audioUrl}" type="audio/wav">
                 Your browser does not support the audio element.
               </audio>
+              <div id="caption-display">Captions will appear here...</div>
               <div class="small"><a href="${audioUrl}" target="_blank">Download audio file</a></div>
             </div>
           `;
+          videoEl = document.getElementById('audio-player');
+          setupVideoHighlighting();
         } else {
-          document.getElementById("video-container").innerHTML = '<div class="notice"><p>🎵 Audio transcription only (no audio file available)</p></div>';
+          document.getElementById("video-container").innerHTML = '<div class="notice"><p><i class="fa-solid fa-music"></i> Audio transcription only (no audio file available)</p></div>';
         }
       } else {
         const ok = await attachVideoToDOM(results.video_path);

@@ -14,14 +14,14 @@ from collections import defaultdict
 from django.core.files.base import ContentFile
 from django.conf import settings
 
-from .detector import detect_faces
+from .detector import detect_faces, unload_yolo_model
 from .dual_embedder import DualEmbedder
 from .dual_vector_db import DualChromaDBManager
 from .transcriber import eat_video
 
 logger = logging.getLogger(__name__)
 
-# Initialize
+# Initialize (lazy loading)
 embedder = DualEmbedder()
 db = DualChromaDBManager()
 
@@ -40,10 +40,11 @@ def process_video_with_db(video_path, task_id, media_file):
     media_file.progress = 5
     media_file.save()
     
-    # 1. Transcribe audio
+    # 1. Transcribe audio (audio models loaded and unloaded inside eat_video)
     logger.info(f"[{task_id}] Transcribing audio...")
     transcript_result = eat_video(video_path)
     transcript_text = transcript_result.get("text", "") if isinstance(transcript_result, dict) else str(transcript_result)
+    transcript_segments = transcript_result.get("segments", []) if isinstance(transcript_result, dict) else []
     
     # Save transcript
     Transcript.objects.update_or_create(
@@ -54,8 +55,16 @@ def process_video_with_db(video_path, task_id, media_file):
     media_file.progress = 20
     media_file.save()
     
+    logger.info(f"[{task_id}] Audio transcription complete, models unloaded")
+    
     # 2. Process video frames
     logger.info(f"[{task_id}] Processing video frames...")
+    
+    # Pre-load face models for entire video processing (major speedup)
+    embedder.load_models()
+    from .detector import load_yolo_model
+    load_yolo_model()
+    logger.info(f"[{task_id}] Face models pre-loaded for video processing")
     
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -72,7 +81,7 @@ def process_video_with_db(video_path, task_id, media_file):
     temp_video_path = os.path.join(annotated_dir, f"temp_annotated_{os.path.basename(video_path)}")
     annotated_path = os.path.join(annotated_dir, f"annotated_{os.path.basename(video_path)}")
     
-    # Use mp4v codec for OpenCV writing (audio will be added later)
+    # Use mp4v codec for better compatibility
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
     
@@ -83,6 +92,9 @@ def process_video_with_db(video_path, task_id, media_file):
         'current_start': None,
         'embeddings': {'arcface': None, 'facenet': None}
     })
+    
+    unknown_faces = []  # Store embeddings of unknown faces for clustering
+    unknown_counter = 0  # Counter for unknown faces
     
     frame_idx = 0
     process_every_n_frames = max(1, int(fps / 2))  # Process 2 frames per second
@@ -112,8 +124,11 @@ def process_video_with_db(video_path, task_id, media_file):
                         continue
                     
                     # Get embeddings
-                    arc_emb, fn_emb = embedder.get_dual_embeddings(aligned_rgb)
+                    embedding_result = embedder.get_dual_embeddings(aligned_rgb)
+                    if embedding_result is None:
+                        continue
                     
+                    arc_emb, fn_emb = embedding_result
                     if arc_emb is None or fn_emb is None:
                         continue
                     
@@ -122,29 +137,49 @@ def process_video_with_db(video_path, task_id, media_file):
                         arc_emb, fn_emb, k=5, arc_threshold=0.30, fn_threshold=0.30
                     )
                     
-                    # Only process KNOWN persons (matched against DB)
-                    if match_id != "NO MATCH FOUND":
-                        detected_in_frame.add(match_id)
+                    # Process BOTH known and unknown persons
+                    if match_id == "NO MATCH FOUND":
+                        # Check if this unknown face matches any previously seen unknown face
+                        matched_unknown = False
+                        for unk_id, unk_arc, unk_fn in unknown_faces:
+                            arc_sim = float(np.dot(arc_emb, unk_arc))
+                            fn_sim = float(np.dot(fn_emb, unk_fn))
+                            if arc_sim >= 0.30 and fn_sim >= 0.30:
+                                match_id = unk_id
+                                matched_unknown = True
+                                break
                         
-                        # Draw bounding box
-                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                        cv2.putText(frame, match_id, (x1, y1 - 10),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                        if not matched_unknown:
+                            # New unknown person
+                            match_id = f"Unknown_{unknown_counter}"
+                            unknown_faces.append((match_id, arc_emb, fn_emb))
+                            unknown_counter += 1
                         
-                        # Save face crop (limit to 5 per person)
-                        if len(person_data[match_id]['face_crops']) < 5:
-                            face_crop = frame[y1:y2, x1:x2]
-                            if face_crop.size > 0:
-                                person_data[match_id]['face_crops'].append(face_crop.copy())
-                        
-                        # Store embeddings
-                        if person_data[match_id]['embeddings']['arcface'] is None:
-                            person_data[match_id]['embeddings']['arcface'] = arc_emb
-                            person_data[match_id]['embeddings']['facenet'] = fn_emb
-                        
-                        # Track timestamp
-                        if person_data[match_id]['current_start'] is None:
-                            person_data[match_id]['current_start'] = current_time
+                        color = (0, 0, 255)  # Red for unknown
+                    else:
+                        color = (0, 255, 0)  # Green for known
+                    
+                    detected_in_frame.add(match_id)
+                    
+                    # Draw bounding box
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                    cv2.putText(frame, match_id, (x1, y1 - 10),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+                    
+                    # Save face crop (limit to 5 per person)
+                    if len(person_data[match_id]['face_crops']) < 5:
+                        face_crop = frame[y1:y2, x1:x2]
+                        if face_crop.size > 0:
+                            person_data[match_id]['face_crops'].append(face_crop.copy())
+                    
+                    # Store embeddings
+                    if person_data[match_id]['embeddings']['arcface'] is None:
+                        person_data[match_id]['embeddings']['arcface'] = arc_emb
+                        person_data[match_id]['embeddings']['facenet'] = fn_emb
+                    
+                    # Track timestamp
+                    if person_data[match_id]['current_start'] is None:
+                        person_data[match_id]['current_start'] = current_time
                 
                 # Close timestamp intervals for persons not in current frame
                 for person_id in person_data:
@@ -186,6 +221,11 @@ def process_video_with_db(video_path, task_id, media_file):
     finally:
         cap.release()
         out.release()
+        
+        # Unload face detection and embedding models after video processing
+        unload_yolo_model()
+        embedder.unload_models()
+        logger.info(f"[{task_id}] Face processing models unloaded")
         
         # Merge video with original audio using ffmpeg
         import subprocess
@@ -259,6 +299,7 @@ def process_video_with_db(video_path, task_id, media_file):
         "status": "ok",
         "video_path": rel_path,
         "transcript": transcript_text,
+        "transcript_segments": transcript_segments,
         "persons": {
             pid: {
                 "timestamps": data['timestamps'],

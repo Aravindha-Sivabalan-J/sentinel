@@ -1,26 +1,258 @@
-<!-- templates/image_result.html -->
-<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>Image Result</title></head>
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Result</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f7fa;
+      overflow: hidden;
+    }
+    .container { display: flex; height: 100vh; }
+    .sidebar {
+      width: 220px;
+      background: #25293C;
+      color: white;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 1000;
+    }
+
+    .sidebar-header {
+      padding: 15px 12px;
+      text-align: center;
+    }
+    .sidebar-header img {
+      width: 60px;
+      margin: 0 auto 6px;
+      display: block;
+    }
+    .menu {
+      list-style: none;
+      padding: 12px 10px;
+    }
+    .menu-item { margin-bottom: 3px; }
+    .menu-item a {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      color: #cbd5e0;
+      text-decoration: none;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      font-size: 12px;
+    }
+    .menu-item a:hover {
+      background: rgba(62, 124, 177, 0.15);
+      color: white;
+      transform: translateX(3px);
+    }
+    .menu-item .icon {
+      margin-right: 8px;
+      font-size: 14px;
+      width: 20px;
+      text-align: center;
+    }
+    .main-content {
+      flex: 1;
+      margin-left: 220px;
+      padding: 15px;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .back-btn {
+      background: #3E7CB1;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 12px;
+    }
+    .back-btn:hover { background: #2B5A7E; }
+    h1 { font-size: 18px; color: #1a202c; }
+    .content {
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+    }
+    .image-container {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .uploaded-image {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .result-box {
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 15px;
+      margin-top: 12px;
+    }
+    .match-found { background: #f0fdf4; }
+    .no-match { background: #fef2f2; }
+    .error { background: #fffbeb; }
+    .result-box h2 { font-size: 14px; margin-bottom: 10px; color: #1a202c; }
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .info-table tr {
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .info-table tr:last-child {
+      border-bottom: none;
+    }
+    .info-table td {
+      padding: 8px 6px;
+      font-size: 12px;
+    }
+    .info-table td:first-child {
+      color: #6c757d;
+      font-weight: 500;
+      width: 120px;
+    }
+    .info-table td:last-child {
+      color: #1a202c;
+      font-weight: 600;
+    }
+  </style>
+</head>
 <body>
-  <h1>Image Result</h1>
-  {% if no_face %}
-    <p>No faces detected in the uploaded image.</p>
-  {% elif no_landmarks %}
-    <p>Face detected but landmarks missing (cannot embed).</p>
-  {% elif embedding_error %}
-    <p>Failed to generate embedding for the detected face.</p>
-  {% else %}
-    <img src="/media/{{ media_url }}" style="max-width:480px" />
-    {% if match %}
-      <h2>Match found</h2>
-      <p><strong>ID:</strong> {{ match.id }}</p>
-      <p><strong>Distance:</strong> {{ match.distance }}</p>
-      <p><strong>Metadata:</strong> {{ match.metadata }}</p>
-    {% else %}
-      <h2>No match found</h2>
-    {% endif %}
-  {% endif %}
-  <p><a href="{% url 'core:home' %}">Upload another</a></p>
+  <div class="container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="{% static 'logo/logo2.png' %}" alt="Logo">
+      </div>
+      <nav>
+        <ul class="menu">
+          <li class="menu-item">
+            <a href="{% url 'core:search_media' %}">
+              <i class="icon fa-solid fa-magnifying-glass"></i>
+              <span>Search Media</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:home' %}">
+              <i class="icon fa-solid fa-cloud-arrow-up"></i>
+              <span>Upload Media</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:analyze_image' %}" class="active">
+              <i class="icon fa-solid fa-image"></i>
+              <span>Image Analyzer</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:enroll_person' %}">
+              <i class="icon fa-solid fa-user-plus"></i>
+              <span>Enroll Person</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:live_detection' %}">
+              <i class="icon fa-solid fa-video"></i>
+              <span>Live Detection</span>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="{% url 'core:view_db' %}">
+              <i class="icon fa-solid fa-database"></i>
+              <span>Media Library</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+    
+    <main class="main-content">
+      <div class="header">
+        <a href="{% url 'core:home' %}" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back</a>
+        <h1><i class="fa-solid fa-face-smile"></i> Face Recognition Result</h1>
+      </div>
+      
+      <div class="content">
+        {% if no_face %}
+          <div class="result-box error">
+            <h2><i class="fa-solid fa-circle-xmark"></i> No Face Detected</h2>
+            <p>No faces were detected in the uploaded image.</p>
+          </div>
+        {% elif no_landmarks %}
+          <div class="result-box error">
+            <h2><i class="fa-solid fa-triangle-exclamation"></i> Face Processing Error</h2>
+            <p>Face detected but landmarks are missing.</p>
+          </div>
+        {% elif embedding_error %}
+          <div class="result-box error">
+            <h2><i class="fa-solid fa-triangle-exclamation"></i> Embedding Error</h2>
+            <p>Failed to generate embedding for the detected face.</p>
+          </div>
+        {% elif blurry %}
+          <div class="result-box error">
+            <h2><i class="fa-solid fa-camera"></i> Image Quality Issue</h2>
+            <p>The uploaded image is too blurry.</p>
+          </div>
+        {% elif read_error %}
+          <div class="result-box error">
+            <h2><i class="fa-solid fa-circle-xmark"></i> Image Processing Error</h2>
+            <p>Unable to process the uploaded image.</p>
+          </div>
+        {% else %}
+          <div class="image-container">
+            <img src="/media/{{ media_url }}" alt="Uploaded Image" class="uploaded-image" />
+          </div>
+          
+          {% if match %}
+            <div class="result-box match-found">
+              <h2><i class="fa-solid fa-circle-check"></i> Match Found</h2>
+              <table class="info-table">
+                <tr>
+                  <td>Person ID</td>
+                  <td>{{ match.id }}</td>
+                </tr>
+                <tr>
+                  <td>Confidence Score</td>
+                  <td>{{ match.distance|floatformat:4 }}</td>
+                </tr>
+                <tr>
+                  <td>Age</td>
+                  <td>{{ match.metadata.age|default:"N/A" }} years</td>
+                </tr>
+                <tr>
+                  <td>Description</td>
+                  <td>{{ match.metadata.description|default:"N/A" }}</td>
+                </tr>
+              </table>
+            </div>
+          {% else %}
+            <div class="result-box no-match">
+              <h2><i class="fa-solid fa-circle-xmark"></i> No Match Found</h2>
+              <p style="margin-top: 10px; color: #6c757d;">This person is not in the enrolled database.</p>
+            </div>
+          {% endif %}
+        {% endif %}
+      </div>
+    </main>
+  </div>
 </body>
 </html>

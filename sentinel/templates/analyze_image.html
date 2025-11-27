@@ -1,0 +1,230 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Analyzer - SENTINEL</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; }
+    .container { display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar { width: 220px; background: #25293C; color: white; position: fixed; height: 100vh; overflow-y: auto; z-index: 1000; box-shadow: 4px 0 15px rgba(0,0,0,0.1); }
+
+    .sidebar-header { padding: 15px 12px; text-align: center; }
+    .sidebar-header img { width: 60px; margin: 0 auto 6px; display: block; }
+    .sidebar-header p { font-size: 11px; font-weight: 600; letter-spacing: 1px; color: #cbd5e0; }
+    .menu { list-style: none; padding: 12px 10px; }
+    .menu-item { margin-bottom: 3px; }
+    .menu-item a { display: flex; align-items: center; padding: 8px 10px; color: #cbd5e0; text-decoration: none; border-radius: 8px; transition: all 0.3s ease; font-size: 12px; }
+    .menu-item a:hover { background: rgba(62, 124, 177, 0.15); color: white; transform: translateX(3px); }
+    .menu-item a.active { background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%); color: white; font-weight: 600; box-shadow: 0 4px 15px rgba(62, 124, 177, 0.4); }
+    .menu-item .icon { margin-right: 8px; font-size: 14px; width: 20px; text-align: center; }
+
+    /* Main Content */
+    .main-content { flex: 1; margin-left: 220px; padding: 15px 20px; min-height: 100vh; }
+    .page-header { margin-bottom: 15px; }
+    .page-header h2 { color: #1a202c; font-size: 20px; margin-bottom: 4px; font-weight: 700; }
+    .page-header p { color: #718096; font-size: 12px; }
+
+    /* Card */
+    .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); max-width: 700px; margin: 0 auto; }
+    .card h3 { color: #1a202c; font-size: 16px; margin-bottom: 6px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .card h3 i { color: #3E7CB1; font-size: 18px; }
+    .card .description { color: #64748b; font-size: 11px; margin-bottom: 15px; line-height: 1.4; }
+
+    /* Upload Area */
+    .upload-area { position: relative; background: linear-gradient(135deg, #f8fafc 0%, #e8f1f8 100%); border: 2px dashed #cbd5e0; border-radius: 10px; padding: 30px 20px; text-align: center; transition: all 0.3s ease; cursor: pointer; margin-bottom: 12px; }
+    .upload-area:hover { border-color: #3E7CB1; background: linear-gradient(135deg, #e8f1f8 0%, #d8e9f5 100%); transform: translateY(-2px); }
+    .upload-area.drag-over { border-color: #3E7CB1; background: rgba(62, 124, 177, 0.1); border-style: solid; }
+    .upload-area i.upload-icon { font-size: 40px; color: #3E7CB1; margin-bottom: 10px; display: block; }
+    .upload-area h4 { font-size: 14px; color: #1a202c; margin-bottom: 5px; }
+    .upload-area p { color: #64748b; font-size: 11px; margin-bottom: 4px; }
+    .upload-area .file-types { color: #94a3b8; font-size: 10px; font-style: italic; }
+    .upload-area input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+    /* Preview */
+    .preview-section { display: none; margin-bottom: 12px; }
+    .preview-section.show { display: block; }
+    .preview-box { background: #f8fafc; border-radius: 8px; padding: 12px; text-align: center; }
+    .preview-image { max-width: 100%; max-height: 300px; border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+    .preview-info { margin-top: 8px; padding: 8px; background: white; border-radius: 6px; display: inline-block; }
+    .preview-info i { color: #3E7CB1; margin-right: 6px; }
+    .preview-info span { font-size: 11px; color: #1a202c; font-weight: 600; }
+
+    /* Button */
+    .analyze-btn { width: 100%; padding: 10px; background: linear-gradient(135deg, #3E7CB1 0%, #2B5A7E 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(62, 124, 177, 0.3); display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .analyze-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(62, 124, 177, 0.4); }
+    .analyze-btn:disabled { background: #cbd5e0; cursor: not-allowed; transform: none; box-shadow: none; }
+    .analyze-btn i { font-size: 14px; }
+
+    /* Messages */
+    .message { padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-size: 11px; display: none; }
+    .message.show { display: block; }
+    .error { color: #c53030; background: #fed7d7; border-left: 3px solid #c53030; }
+    .info { color: #2c5282; background: #bee3f8; border-left: 3px solid #2c5282; }
+
+    /* Features */
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #e2e8f0; }
+    .feature { text-align: center; padding: 12px; background: #f8fafc; border-radius: 8px; }
+    .feature i { font-size: 20px; color: #3E7CB1; margin-bottom: 6px; }
+    .feature h5 { font-size: 11px; color: #1a202c; margin-bottom: 3px; }
+    .feature p { font-size: 10px; color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img src="{% static 'logo/logo2.png' %}" alt="SENTINEL Logo">
+      </div>
+      <nav>
+        <ul class="menu">
+          <li class="menu-item"><a href="{% url 'core:search_media' %}"><i class="icon fa-solid fa-magnifying-glass"></i><span>Search Media</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:home' %}"><i class="icon fa-solid fa-cloud-arrow-up"></i><span>Upload Media</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:analyze_image' %}" class="active"><i class="icon fa-solid fa-image"></i><span>Image Analyzer</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:enroll_person' %}"><i class="icon fa-solid fa-user-plus"></i><span>Enroll Person</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:live_detection' %}"><i class="icon fa-solid fa-video"></i><span>Live Detection</span></a></li>
+          <li class="menu-item"><a href="{% url 'core:view_db' %}"><i class="icon fa-solid fa-database"></i><span>Media Library</span></a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Image Analyzer</h2>
+        <p>Upload an image to identify enrolled persons using AI face recognition</p>
+      </div>
+
+      <div class="card">
+        <h3><i class="fa-solid fa-brain"></i>Face Recognition Analysis</h3>
+        <p class="description">Upload an image containing a person's face. Our AI will analyze it and match it against enrolled persons in the database, providing detailed information if a match is found.</p>
+
+        <div id="message" class="message"></div>
+
+        <form method="POST" enctype="multipart/form-data" id="upload-form">
+          {% csrf_token %}
+
+          <!-- Upload Area -->
+          <div class="upload-area" id="upload-area">
+            <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+            <h4>Drop your image here</h4>
+            <p>or click to browse from your device</p>
+            <p class="file-types">Supported formats: JPG, PNG, BMP, WEBP, GIF, TIFF</p>
+            <input type="file" name="file" id="file-input" accept=".jpg,.jpeg,.png,.bmp,.webp,.gif,.tiff,.tif" required>
+          </div>
+
+          <!-- Preview Section -->
+          <div class="preview-section" id="preview-section">
+            <div class="preview-box">
+              <img id="preview-image" class="preview-image" src="" alt="Preview">
+              <div class="preview-info">
+                <i class="fa-solid fa-file-image"></i>
+                <span id="file-name"></span>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="analyze-btn" id="analyze-btn">
+            <i class="fa-solid fa-magnifying-glass-chart"></i>
+            Analyze Image
+          </button>
+        </form>
+
+        <!-- Features -->
+        <div class="features">
+          <div class="feature">
+            <i class="fa-solid fa-bolt"></i>
+            <h5>Instant Results</h5>
+            <p>Get immediate face recognition results</p>
+          </div>
+          <div class="feature">
+            <i class="fa-solid fa-shield-halved"></i>
+            <h5>High Accuracy</h5>
+            <p>Dual-model AI for precise matching</p>
+          </div>
+          <div class="feature">
+            <i class="fa-solid fa-database"></i>
+            <h5>Database Search</h5>
+            <p>Matches against enrolled persons</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    const previewSection = document.getElementById('preview-section');
+    const previewImage = document.getElementById('preview-image');
+    const fileNameDisplay = document.getElementById('file-name');
+    const message = document.getElementById('message');
+
+    // Drag and drop handlers
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('drag-over');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('drag-over');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('drag-over');
+
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        fileInput.files = files;
+        handleFileSelect();
+      }
+    });
+
+    // File input change
+    fileInput.addEventListener('change', handleFileSelect);
+
+    function handleFileSelect() {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/bmp', 'image/webp', 'image/gif', 'image/tiff'];
+      if (!validTypes.includes(file.type)) {
+        showMessage('Please select a valid image file (JPG, PNG, BMP, WEBP, GIF, or TIFF)', 'error');
+        fileInput.value = '';
+        return;
+      }
+
+      // Show preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewImage.src = e.target.result;
+        fileNameDisplay.textContent = file.name;
+        previewSection.classList.add('show');
+        uploadArea.style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function showMessage(text, type) {
+      message.textContent = text;
+      message.className = `message ${type} show`;
+    }
+
+    // Form validation
+    document.getElementById('upload-form').addEventListener('submit', (e) => {
+      if (!fileInput.files[0]) {
+        e.preventDefault();
+        showMessage('Please select an image file', 'error');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -17,7 +17,7 @@ import threading
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Initialize DB & embedder once
+# Initialize DB & embedder (lazy loading)
 embedder = DualEmbedder()
 db = DualChromaDBManager()
 
@@ -28,11 +28,11 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 
 def home_view(request):
     if request.method == "GET":
-        return render(request, "home.html")
+        return render(request, "upload_media.html")
 
     uploaded_file = request.FILES.get("file")
     if not uploaded_file:
-        return render(request, "home.html", {"error": "No file uploaded."})
+        return render(request, "upload_media.html", {"error": "No file uploaded."})
 
     # Save upload
     save_dir = os.path.join(MEDIA_ROOT, "incoming")
@@ -65,7 +65,7 @@ def home_view(request):
         
         return redirect("core:results_page", task_id=task.id)
 
-    # ---- IMAGE ----
+    # ---- IMAGE (Quick Analysis) ----
     faces = detect_faces(file_path)
     if not faces:
         return render(request, "image_result.html", {
@@ -75,7 +75,7 @@ def home_view(request):
 
     face = faces[0]
     aligned_rgb = face["aligned_face"]
-    
+
     if aligned_rgb is None or aligned_rgb.size == 0:
         return render(request, "image_result.html", {
             "media_url": os.path.relpath(file_path, MEDIA_ROOT),
@@ -88,6 +88,71 @@ def home_view(request):
             "blurry": True,
         })
 
+    # Get embeddings (models loaded on-demand)
+    arc_emb, fn_emb = embedder.get_dual_embeddings(aligned_rgb)
+    if arc_emb is None or fn_emb is None:
+        return render(request, "image_result.html", {
+            "media_url": os.path.relpath(file_path, MEDIA_ROOT),
+            "embedding_error": True,
+        })
+    
+    # Unload models after use
+    embedder.unload_models()
+    from analysis_pipeline.detector import unload_yolo_model
+    unload_yolo_model()
+
+    match_id, distance, metadata = db.search_person(arc_emb, fn_emb, k=5, arc_threshold=0.30, fn_threshold=0.30)
+    match = None if match_id == "NO MATCH FOUND" else {
+        "id": match_id, "distance": distance, "metadata": metadata
+    }
+
+    return render(request, "image_result.html", {
+        "media_url": os.path.relpath(file_path, MEDIA_ROOT),
+        "match": match,
+    })
+
+
+def analyze_image_view(request):
+    """Dedicated image analyzer page - analyzes uploaded image against enrolled persons"""
+    if request.method == "GET":
+        return render(request, "analyze_image.html")
+
+    uploaded_file = request.FILES.get("file")
+    if not uploaded_file:
+        return render(request, "analyze_image.html", {"error": "No file uploaded."})
+
+    # Save upload
+    save_dir = os.path.join(MEDIA_ROOT, "incoming")
+    os.makedirs(save_dir, exist_ok=True)
+    file_path = os.path.join(save_dir, uploaded_file.name)
+    with open(file_path, "wb") as f:
+        for chunk in uploaded_file.chunks():
+            f.write(chunk)
+
+    # Detect faces
+    faces = detect_faces(file_path)
+    if not faces:
+        return render(request, "image_result.html", {
+            "media_url": os.path.relpath(file_path, MEDIA_ROOT),
+            "no_face": True,
+        })
+
+    face = faces[0]
+    aligned_rgb = face["aligned_face"]
+
+    if aligned_rgb is None or aligned_rgb.size == 0:
+        return render(request, "image_result.html", {
+            "media_url": os.path.relpath(file_path, MEDIA_ROOT),
+            "read_error": True,
+        })
+
+    if is_blurry(aligned_rgb, thresh=50):
+        return render(request, "image_result.html", {
+            "media_url": os.path.relpath(file_path, MEDIA_ROOT),
+            "blurry": True,
+        })
+
+    # Get embeddings (models loaded on-demand)
     arc_emb, fn_emb = embedder.get_dual_embeddings(aligned_rgb)
     if arc_emb is None or fn_emb is None:
         return render(request, "image_result.html", {
@@ -95,6 +160,12 @@ def home_view(request):
             "embedding_error": True,
         })
 
+    # Unload models after use
+    embedder.unload_models()
+    from analysis_pipeline.detector import unload_yolo_model
+    unload_yolo_model()
+
+    # Search for match in database
     match_id, distance, metadata = db.search_person(arc_emb, fn_emb, k=5, arc_threshold=0.30, fn_threshold=0.30)
     match = None if match_id == "NO MATCH FOUND" else {
         "id": match_id, "distance": distance, "metadata": metadata
@@ -138,13 +209,11 @@ def enroll_view(request):
 
     if request.method == "POST":
         person_id = request.POST.get("person_id")
-        job = request.POST.get("job")
         age = request.POST.get("age")
-        height = request.POST.get("height")
-        weight = request.POST.get("weight")
+        description = request.POST.get("description")
         uploaded_file = request.FILES.get("face_image")
 
-        if not all([person_id, job, age, height, weight, uploaded_file]):
+        if not all([person_id, age, description, uploaded_file]):
             return render(request, "enroll.html", {"error": "All fields are required."})
 
         save_dir = os.path.join(MEDIA_ROOT, "enrollments")
@@ -179,15 +248,20 @@ def enroll_view(request):
         except Exception as e:
             logger.exception(f"[FACE_CROP] Exception while saving face crop for {person_id}: {e}")
 
-        # Generate dual embeddings directly from aligned RGB face
+        # Generate dual embeddings directly from aligned RGB face (models loaded on-demand)
         arc_emb, fn_emb = embedder.get_dual_embeddings(aligned_rgb)
         if arc_emb is None or fn_emb is None:
             return render(request, "enroll.html", {"error": "Failed to generate dual embeddings."})
+        
+        # Unload models after enrollment
+        embedder.unload_models()
+        from analysis_pipeline.detector import unload_yolo_model
+        unload_yolo_model()
 
         # Log embedding norms for verification
         logger.info(f"[ENROLL_DEBUG] person={person_id} arc_norm={np.linalg.norm(arc_emb):.6f} fn_norm={np.linalg.norm(fn_emb):.6f}")
 
-        metadata = {"job": job, "age": age, "height": height, "weight": weight}
+        metadata = {"age": age, "description": description}
         db.add_person(person_id=person_id, arcface_emb=arc_emb, facenet_emb=fn_emb, metadata=metadata)
 
         return render(request, "enroll.html", {"success": f"Enrolled {person_id} successfully!"})
@@ -404,6 +478,16 @@ def view_db(request):
     return render(request, "view_db.html")
 
 
+def youtube_download_view(request):
+    """Render YouTube download page"""
+    return render(request, "youtube_download.html")
+
+
+def audio_to_text_view(request):
+    """Render audio to text page"""
+    return render(request, "audio_to_text.html")
+
+
 def get_all_media(request):
     """API endpoint to get all media files with status"""
     from core.models import MediaFile
@@ -535,10 +619,15 @@ def search_media_view(request):
         if aligned_rgb is None or aligned_rgb.size == 0:
             return JsonResponse({"error": "Face alignment failed"}, status=400)
         
-        # Get embeddings
+        # Get embeddings (models loaded on-demand)
         arc_emb, fn_emb = embedder.get_dual_embeddings(aligned_rgb)
         if arc_emb is None or fn_emb is None:
             return JsonResponse({"error": "Failed to generate embeddings"}, status=400)
+        
+        # Unload models after search
+        embedder.unload_models()
+        from analysis_pipeline.detector import unload_yolo_model
+        unload_yolo_model()
         
         # Search across all stored face crops
         results = []
@@ -606,12 +695,24 @@ def view_media(request, media_file_id):
                 'thumbnail': person.face_thumbnail.url if person.face_thumbnail else None
             }
         
-        # Get transcript
+        # Get transcript and segments
         transcript = ""
+        transcript_segments = []
         try:
             transcript = media_file.transcript.full_text
         except:
             pass
+        
+        # Try to get segments from task results JSON
+        if media_file.task_id:
+            result_path = os.path.join(RESULTS_DIR, f"{media_file.task_id}.json")
+            if os.path.exists(result_path):
+                try:
+                    with open(result_path, 'r', encoding='utf-8') as f:
+                        result_data = json.load(f)
+                        transcript_segments = result_data.get('transcript_segments', [])
+                except:
+                    pass
         
         # Get annotated video path or audio file path
         if media_file.annotated_video and media_file.annotated_video.name:
@@ -629,6 +730,7 @@ def view_media(request, media_file_id):
             'video_path': video_path,
             'persons': persons,
             'transcript': transcript,
+            'transcript_segments': transcript_segments,
             'status': media_file.status,
             'is_audio': is_audio
         }
@@ -657,12 +759,12 @@ def stop_processing(request, media_file_id):
             # Update status FIRST (so task checks and stops)
             media_file.status = 'stopped'
             media_file.save()
-            
+
             if media_file.task_id:
                 # Revoke the Celery task (terminate if running, remove if queued)
                 AsyncResult(media_file.task_id).revoke(terminate=True, signal='SIGKILL')
                 logger.info(f"Revoked task {media_file.task_id} for media file {media_file_id}")
-            
+
             return JsonResponse({"success": True, "message": "Processing stopped"})
         except MediaFile.DoesNotExist:
             return JsonResponse({"error": "Media file not found"}, status=404)
@@ -681,16 +783,20 @@ def restart_processing(request, media_file_id):
         try:
             media_file = MediaFile.objects.get(id=media_file_id)
             
-            # Use stored video_path
+            # CRITICAL: Prevent reprocessing of already saved files
+            if media_file.status == 'saved':
+                return JsonResponse({"error": "File already processed and saved"}, status=400)
+            
+            if media_file.status not in ['failed', 'stopped']:
+                return JsonResponse({"error": "Can only restart failed or stopped files"}, status=400)
+            
             video_path = media_file.video_path
             
             if not video_path or not os.path.exists(video_path):
                 return JsonResponse({"error": "Video file not found"}, status=404)
             
-            # Start new processing task
             task = process_video_task.delay(video_path, media_file.id)
             
-            # Update status
             media_file.task_id = task.id
             media_file.status = 'processing'
             media_file.progress = 0

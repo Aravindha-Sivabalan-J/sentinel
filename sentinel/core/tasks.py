@@ -67,7 +67,17 @@ def process_audio_task(self, audio_path, media_file_id=None):
         )
         media_file_id = media_file.id
     else:
+        # CRITICAL CHECK: If already processed and saved, skip entirely
         media_file.refresh_from_db()
+        if media_file.status == 'saved':
+            logger.info(f"Task {task_id} skipped - audio file already processed and saved")
+            # Return existing results if available
+            if os.path.exists(result_path):
+                with open(result_path, 'r', encoding='utf-8') as f:
+                    existing_results = json.load(f)
+                return existing_results
+            return {"status": "saved", "message": "Audio file already processed and saved", "media_file_id": media_file_id}
+        
         if media_file.status == 'stopped':
             logger.info(f"Task {task_id} skipped - file was stopped")
             return {"status": "stopped", "message": "Processing was stopped by user"}
@@ -83,9 +93,10 @@ def process_audio_task(self, audio_path, media_file_id=None):
         media_file.progress = 20
         media_file.save()
         
-        # Transcribe audio
+        # Transcribe audio (audio models loaded and unloaded inside eat_video)
         transcript_result = eat_video(audio_path)
         transcript_text = transcript_result.get("text", "") if isinstance(transcript_result, dict) else str(transcript_result)
+        transcript_segments = transcript_result.get("segments", []) if isinstance(transcript_result, dict) else []
         
         media_file.progress = 80
         media_file.save()
@@ -107,13 +118,55 @@ def process_audio_task(self, audio_path, media_file_id=None):
         media_file.save()
         
         # Save results to JSON
+        # Compute fast, approximate sentence-level timestamps from segment timestamps.
+        transcript_sentences = []
+        try:
+            import re
+
+            if transcript_segments and isinstance(transcript_segments, list):
+                for seg in transcript_segments:
+                    text = seg.get("text", "")
+                    start = float(seg.get("start", 0) or 0)
+                    end = float(seg.get("end", start) or start)
+                    duration = max(0.0, end - start)
+
+                    # Split segment text into sentences (simple rule-based split).
+                    # This is approximate but fast: split on sentence end punctuation.
+                    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+                    if not sentences:
+                        # If no sentence boundaries found, keep full segment as one sentence
+                        transcript_sentences.append({"text": text, "start": start, "end": end})
+                        continue
+
+                    # Distribute duration across sentences proportionally by word count.
+                    word_counts = [len(s.split()) for s in sentences]
+                    total_words = sum(word_counts) or 1
+                    cursor = start
+                    for s_text, wc in zip(sentences, word_counts):
+                        frac = float(wc) / float(total_words)
+                        s_dur = duration * frac
+                        s_start = cursor
+                        s_end = cursor + s_dur
+                        transcript_sentences.append({"text": s_text, "start": round(s_start, 3), "end": round(s_end, 3)})
+                        cursor = s_end
+            else:
+                # No segment timestamps available: fallback to a single sentence with no timing
+                if transcript_text:
+                    transcript_sentences.append({"text": transcript_text, "start": 0.0, "end": 0.0})
+        except Exception:
+            # On any error, fall back to single block transcript
+            transcript_sentences = [{"text": transcript_text, "start": 0.0, "end": 0.0}]
+
         results = {
             "status": "ok",
             "transcript": transcript_text,
+            "transcript_segments": transcript_segments,
+            "transcript_sentences": transcript_sentences,
             "persons": {},
             "video_path": None,
             "audio_path": rel_audio_path,
-            "audio_only": True
+            "audio_only": True,
+            "is_audio": True
         }
         
         with open(result_path, "w", encoding="utf-8") as fh:
@@ -175,8 +228,18 @@ def process_video_task(self, video_path, media_file_id=None):
         )
         media_file_id = media_file.id
     else:
-        # CHECK: If status is 'stopped', don't process
+        # CRITICAL CHECK: If already processed and saved, skip entirely
         media_file.refresh_from_db()
+        if media_file.status == 'saved':
+            logger.info(f"Task {task_id} skipped - file already processed and saved")
+            # Return existing results if available
+            if os.path.exists(result_path):
+                with open(result_path, 'r', encoding='utf-8') as f:
+                    existing_results = json.load(f)
+                return existing_results
+            return {"status": "saved", "message": "File already processed and saved", "media_file_id": media_file_id}
+        
+        # CHECK: If status is 'stopped', don't process
         if media_file.status == 'stopped':
             logger.info(f"Task {task_id} skipped - file was stopped")
             return {"status": "stopped", "message": "Processing was stopped by user"}
